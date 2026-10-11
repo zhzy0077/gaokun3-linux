@@ -29,6 +29,17 @@ The platform is q6apm. The sound model is
 `SC8280XP-HUAWEI-GAOKUN3-DPAUDIO`; the actual ALSA long name is
 `HUAWEI-GK_W7X-M1010-GK_W7X_PCB`. The long-name selector branches on CardName,
 retaining the original configuration when booting the original sound model.
+Its original-model branch includes `LENOVO-X13s.conf` directly. Recursively
+including the board selector `sc8280xp.conf` from this conditional caused a
+real-libasound `compound type expected for the merged block` / `-EINVAL`
+import failure on the original boot, leaving ACP without HiFi and selecting
+off. The direct include fixes both the private and stock UCM trees.
+
+Run `python3 tests/native_ucm_boot_models.py` on the hardware to parse both
+selector branches against both UCM trees. This uses disposable selectors and
+the real libasound without enabling verbs. Follow with
+`python3 tests/native_audio_smoke.py` on the original boot to verify hardware
+PCM playback; audible output remains a separate check.
 
 The original HiFi profile exposes internal audio only. A DP backend can reject
 PCM preparation before ELD becomes valid, so each DP has a separate profile.
