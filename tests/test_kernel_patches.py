@@ -156,13 +156,17 @@ int main(void) {
         self.assertIn('schedule_work(&rproc->attach_work)', core)
         self.assertIn('rproc->auto_boot != RPROC_AUTO_BOOT_RESTART_IF_FW_AVAILABLE', core)
         self.check_stop_behavior()
+        from test_adsp_boot_diagnostics import extract_function, functions_from_patch
+        for (path, name), function in functions_from_patch().items():
+            self.assertEqual(extract_function((self.tree / path).read_text(), name),
+                             function, name)
 
     def check_stop_behavior(self):
         if not shutil.which('cc'):
             self.skipTest('native C compiler required for stop-state behavior')
         source = (self.tree / 'drivers/remoteproc/qcom_q6v5.c').read_text()
         stop = re.search(r'int qcom_q6v5_request_stop\(.*?\n\}', source, re.DOTALL).group(0)
-        detect = re.search(r'void qcom_q6v5_read_smp2p_state\(.*?\n\}', source, re.DOTALL).group(0)
+        detect = re.search(r'int qcom_q6v5_read_smp2p_state\(.*?\n\}', source, re.DOTALL).group(0)
         harness = r'''
 #include <assert.h>
 #include <stdbool.h>
@@ -172,6 +176,7 @@ int main(void) {
 #define RPROC_RUNNING 3
 #define RPROC_CRASHED 4
 #define IRQCHIP_STATE_LINE_LEVEL 0
+#define dev_info(...) ((void)0)
 #define HZ 100
 #define BIT(n) (1U << (n))
 struct rproc { int state; };
