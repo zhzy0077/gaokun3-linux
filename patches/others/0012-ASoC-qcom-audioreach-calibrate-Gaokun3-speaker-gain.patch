@@ -1,0 +1,64 @@
+From: zhzy0077 <zhzy0077@users.noreply.github.com>
+Subject: [PATCH] ASoC: qcom: audioreach: calibrate Gaokun3 speaker playback gain
+
+Match the tested 150% PipeWire output at 100% desktop volume on Gaokun3.
+Apply the equivalent 27/8 linear gain (+10.57 dB) to the DSP volume control
+of graph 1, which both Gaokun3 topologies use for MultiMedia2 speakers.
+Leave other machines, headphones, microphones and DP paths unchanged.
+Keep the mixer-visible gain and the existing codec/PA limits unchanged.
+Clamp the result to the unsigned Q13 parameter range and preserve mute.
+
+This is a local board calibration, not an implementation of Windows
+Histen processing or active speaker protection. Software amplification
+and DSP amplification occur at different points in the signal chain;
+post-boot playback verification is required before considering it deployed.
+
+Signed-off-by: zhzy0077 <zhzy0077@users.noreply.github.com>
+---
+diff --git a/sound/soc/qcom/qdsp6/audioreach.c b/sound/soc/qcom/qdsp6/audioreach.c
+--- a/sound/soc/qcom/qdsp6/audioreach.c
++++ b/sound/soc/qcom/qdsp6/audioreach.c
+@@ -2,6 +2,8 @@
+ // Copyright (c) 2020, Linaro Limited
+ 
+ #include <linux/kernel.h>
++#include <linux/limits.h>
++#include <linux/of.h>
+ #include <linux/slab.h>
+ #include <linux/soc/qcom/apr.h>
+ #include <sound/soc.h>
+@@ -1212,6 +1214,25 @@
+ 	return audioreach_graph_send_cmd_sync(graph, pkt, 0);
+ }
+ 
++/* Gaokun3's topology routes graph 1 (MultiMedia2) to the built-in speakers. */
++static u16 audioreach_playback_gain(const struct audioreach_module *module,
++				    u16 gain)
++{
++	const struct audioreach_graph_info *info;
++
++	info = module->container->sub_graph->info;
++	if (!of_machine_is_compatible("huawei,gaokun3") || info->id != 1)
++		return gain;
++
++	/*
++	 * Match PulseAudio/PipeWire's 150% volume at the normal 100% setting:
++	 * 1.5^3 = 27/8 linear gain, or +10.57 dB. Keep the mixer-visible
++	 * gain unchanged and retain the codec/PA protection limits.
++	 * Saturate to the DSP parameter's unsigned Q13 range.
++	 */
++	return min_t(u32, (u32)gain * 27 / 8, U16_MAX);
++}
++
+ int audioreach_gain_set_vol_ctrl(struct q6apm *apm,
+ 				 const struct audioreach_module *module, int vol)
+ {
+@@ -1233,7 +1254,7 @@
+ 
+ 	p = p + APM_MODULE_PARAM_DATA_SIZE;
+ 	cfg = p;
+-	cfg->master_gain =  vol;
++	cfg->master_gain = audioreach_playback_gain(module, vol);
+ 	return q6apm_send_cmd_sync(apm, pkt, 0);
+ }
+ EXPORT_SYMBOL_GPL(audioreach_gain_set_vol_ctrl);
