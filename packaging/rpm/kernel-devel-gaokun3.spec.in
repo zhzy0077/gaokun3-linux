@@ -4,7 +4,7 @@
 
 Name:           @PKG_NAME@
 Version:        @KREL_VERSION@
-Release:        12%{?dist}
+Release:        13%{?dist}
 Summary:        Development files for the gaokun3 kernel
 License:        GPL-2.0-only
 ExclusiveArch:  aarch64
@@ -31,6 +31,9 @@ cp -a usr %{buildroot}/
 /usr/lib/modules/@KREL@/source
 
 %changelog
+* Wed Oct 14 2026 Gaokun buildbot - @KREL_VERSION@-13
+- Match the kernel and module packages with ADSP attach and speaker-gain fixes
+
 * Sat Oct 10 2026 Gaokun buildbot - @KREL_VERSION@-12
 - Pin Gaokun3 primary planes to their CRTCs for display-owner handoff
 - Retain asynchronous UCSI initialization and disconnect recovery
