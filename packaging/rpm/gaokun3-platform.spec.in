@@ -5,7 +5,7 @@
 
 Name:           gaokun3-platform
 Version:        @PLATFORM_VERSION@
-Release:        5%{?dist}
+Release:        6%{?dist}
 Summary:        Hardware configuration and desktop tools for Huawei Gaokun3
 # The existing tool sources do not declare a common SPDX license.
 License:        LicenseRef-Unknown
@@ -114,6 +114,8 @@ for source in %{_datadir}/alsa/ucm2/Qualcomm/sc8280xp/*; do
 done
 ln -s ../../Qualcomm/sc8280xp/sc8280xp.conf "$ucm/conf.d/sc8280xp/sc8280xp.conf"
 install -m644 tools/audio/sc8280xp.conf "$ucm/Qualcomm/sc8280xp/sc8280xp.conf"
+install -d "$ucm/Qualcomm/gaokun3-mic"
+install -m644 tools/audio/ucm2/Qualcomm/gaokun3-mic/*.conf "$ucm/Qualcomm/gaokun3-mic/"
 for service in pipewire wireplumber; do
     install -d %{buildroot}%{_userunitdir}/$service.service.d
     cat > %{buildroot}%{_userunitdir}/$service.service.d/50-gaokun3-ucm.conf <<'EOF'
@@ -155,6 +157,9 @@ done
 %config(noreplace) %{_sysconfdir}/skel/.config/monitors.xml
 
 %changelog
+* Sun Oct 11 2026 Gaokun buildbot - @PLATFORM_VERSION@-6
+- Set internal microphone UCM gain to +22 dB (+6 dB over upstream)
+
 * Tue Oct 06 2026 Gaokun buildbot - @PLATFORM_VERSION@-5
 - Package Gaokun hardware defaults and shared installation/kernel-update integration
 - Preload QRTR before udev coldplug to prevent ath11k asynchronous probe deadlock

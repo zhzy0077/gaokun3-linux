@@ -52,9 +52,10 @@ def check():
                 qualcomm = tree / 'Qualcomm'
                 qualcomm.mkdir()
                 for path in (base / 'Qualcomm').iterdir():
-                    if path.name != 'gaokun-dp-audio':
+                    if path.name not in ('gaokun-dp-audio', 'gaokun3-mic'):
                         (qualcomm / path.name).symlink_to(path)
                 (qualcomm / 'gaokun-dp-audio').symlink_to(PAYLOAD / 'Qualcomm/gaokun-dp-audio')
+                (qualcomm / 'gaokun3-mic').symlink_to(ROOT / 'tools/audio/ucm2/Qualcomm/gaokun3-mic')
                 selectors = tree / 'conf.d/sc8280xp'
                 selectors.mkdir(parents=True)
                 for path in (PAYLOAD / 'conf.d/sc8280xp').iterdir():

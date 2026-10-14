@@ -92,7 +92,7 @@ SectionDevice."HDMI{index}" {{
         selector = (selectors / 'HUAWEI-GK_W7X-M1010-GK_W7X_PCB.conf').read_text()
         self.assertIn('String1 "${CardName}"', selector)
         self.assertIn(f'String2 "{audio.MODEL}"', selector)
-        self.assertIn('False.Include.original.File "/Qualcomm/sc8280xp/LENOVO-X13s.conf"', selector)
+        self.assertIn('False.Include.original.File "/Qualcomm/gaokun3-mic/Gaokun3.conf"', selector)
 
     @unittest.skipUnless(DTC and OVERLAY and LIBFDT, 'dtc, fdtoverlay and libfdt required')
     def test_real_overlay_preserves_el2_reservations_and_other_properties(self):

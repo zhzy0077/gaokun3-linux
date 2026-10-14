@@ -14,6 +14,10 @@ install_common_image_assets() {
     "tools/monitors/gdm-monitor-sync.service:/etc/systemd/system/gdm-monitor-sync.service"
   )
   local data_assets=(
+    "tools/audio/ucm2/Qualcomm/gaokun3-mic/Gaokun3.conf:/usr/share/alsa/ucm2/Qualcomm/gaokun3-mic/Gaokun3.conf"
+    "tools/audio/ucm2/Qualcomm/gaokun3-mic/HiFi.conf:/usr/share/alsa/ucm2/Qualcomm/gaokun3-mic/HiFi.conf"
+    "tools/audio/ucm2/Qualcomm/gaokun3-mic/DMIC0EnableSeq.conf:/usr/share/alsa/ucm2/Qualcomm/gaokun3-mic/DMIC0EnableSeq.conf"
+    "tools/audio/ucm2/Qualcomm/gaokun3-mic/DMIC1EnableSeq.conf:/usr/share/alsa/ucm2/Qualcomm/gaokun3-mic/DMIC1EnableSeq.conf"
     "tools/audio/sc8280xp.conf:/usr/share/alsa/ucm2/Qualcomm/sc8280xp/sc8280xp.conf"
     "tools/touchscreen-tuner/tune.py:/usr/local/lib/gaokun-touchscreen-tuner/tune.py"
     "tools/touchscreen-tuner/tune-icon.svg:/usr/local/lib/gaokun-touchscreen-tuner/tune-icon.svg"
