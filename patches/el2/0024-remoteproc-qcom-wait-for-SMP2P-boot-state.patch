@@ -1,0 +1,233 @@
+From d48983dedd363d693dfc3ed8cd8d8ef48600c8f7 Mon Sep 17 00:00:00 2001
+From: zhzy0077 <zhzy0077@users.noreply.github.com>
+Date: Wed, 14 Oct 2026 17:22:13 +0800
+Subject: [PATCH] remoteproc: qcom: wait for an unmapped SMP2P boot state on
+ no-reset devices
+
+Gaokun3 boot diagnostics show PAS reading an unmapped SMP2P entry and
+returning -ENODEV, followed 4.589 ms later by an inbound ready/handover
+sample. The IRQ provider can be bound while its remote state entry is
+still unavailable.
+
+On no-reset devices, retry only this unavailable-state error in
+sleepable probe context with a 100 ms monotonic budget and 5-10 ms
+sleeps. Read all four levels again on each attempt. The mapped-state
+fast path and reset-capable startup have no added wait. Stop immediately
+on a valid state or any other error; retain terminal errors and
+fatal/stop checks. No firmware reset, forced attachment or indefinite
+deferred probing is introduced.
+
+Keep the diagnostic samples and report retry count, elapsed time and
+final read result. This covers the observed provider/consumer race
+without assuming that a delay alone makes the remote processor ready.
+
+Signed-off-by: zhzy0077 <zhzy0077@users.noreply.github.com>
+---
+ drivers/remoteproc/qcom_q6v5_pas.c | 36 +++++++++++++++++++++++++++++-
+ 1 file changed, 35 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/remoteproc/qcom_q6v5_pas.c b/drivers/remoteproc/qcom_q6v5_pas.c
+index c8ccdee..09bf94e 100644
+--- a/drivers/remoteproc/qcom_q6v5_pas.c
++++ b/drivers/remoteproc/qcom_q6v5_pas.c
+@@ -1,75 +1,77 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ /*
+  * Qualcomm Peripheral Authentication Service remoteproc driver
+  *
+  * Copyright (C) 2016 Linaro Ltd
+  * Copyright (C) 2014 Sony Mobile Communications AB
+  * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+  */
+ 
+ #include <linux/clk.h>
+ #include <linux/delay.h>
+ #include <linux/firmware.h>
+ #include <linux/interrupt.h>
+ #include <linux/iommu.h>
+ #include <linux/kernel.h>
++#include <linux/ktime.h>
+ #include <linux/module.h>
+ #include <linux/of.h>
+ #include <linux/of_address.h>
+ #include <linux/of_reserved_mem.h>
+ #include <linux/platform_device.h>
+ #include <linux/pm_domain.h>
+ #include <linux/pm_runtime.h>
+ #include <linux/firmware/qcom/qcom_scm.h>
+ #include <linux/regulator/consumer.h>
+ #include <linux/remoteproc.h>
+ #include <linux/soc/qcom/mdt_loader.h>
+ #include <linux/soc/qcom/smem.h>
+ #include <linux/soc/qcom/smem_state.h>
+ 
+ #include "qcom_common.h"
+ #include "qcom_pil_info.h"
+ #include "qcom_q6v5.h"
+ #include "remoteproc_internal.h"
+ 
+ #define QCOM_PAS_DECRYPT_SHUTDOWN_DELAY_MS	100
++#define QCOM_PAS_SMP2P_WAIT_MS		100
+ 
+ #define MAX_ASSIGN_COUNT 3
+ 
+ struct qcom_pas_data {
+ 	int crash_reason_smem;
+ 	const char *firmware_name;
+ 	const char *dtb_firmware_name;
+ 	int pas_id;
+ 	int dtb_pas_id;
+ 	int lite_pas_id;
+ 	int lite_dtb_pas_id;
+ 	unsigned int minidump_id;
+ 	bool auto_boot;
+ 	bool decrypt_shutdown;
+ 
+ 	char **proxy_pd_names;
+ 
+ 	const char *load_state;
+ 	const char *ssr_name;
+ 	const char *sysmon_name;
+ 	int ssctl_id;
+ 	unsigned int smem_host_id;
+ 
+ 	int region_assign_idx;
+ 	int region_assign_count;
+ 	bool region_assign_shared;
+ 	int region_assign_vmid;
+ 	bool early_boot;
+ };
+ 
+ struct qcom_pas {
+ 	struct device *dev;
+ 	struct rproc *rproc;
+ 
+ 	struct qcom_q6v5 q6v5;
+ 
+ 	struct clk *xo;
+ 	struct clk *aggre2_clk;
+ 
+ 	struct regulator *cx_supply;
+@@ -787,86 +789,118 @@ static int qcom_pas_assign_memory_region(struct qcom_pas *pas)
+ 
+ 		pas->region_assign_phys[offset] = res.start;
+ 		pas->region_assign_size[offset] = resource_size(&res);
+ 		pas->region_assign_owners[offset] = BIT(QCOM_SCM_VMID_HLOS);
+ 
+ 		ret = qcom_scm_assign_mem(pas->region_assign_phys[offset],
+ 					  pas->region_assign_size[offset],
+ 					  &pas->region_assign_owners[offset],
+ 					  perm, perm_size);
+ 		if (ret < 0) {
+ 			dev_err(pas->dev, "assign memory %d failed\n", offset);
+ 			return ret;
+ 		}
+ 	}
+ 
+ 	return 0;
+ }
+ 
+ static void qcom_pas_unassign_memory_region(struct qcom_pas *pas)
+ {
+ 	struct qcom_scm_vmperm perm;
+ 	int offset;
+ 	int ret;
+ 
+ 	if (!pas->region_assign_idx || pas->region_assign_shared)
+ 		return;
+ 
+ 	for (offset = 0; offset < pas->region_assign_count; ++offset) {
+ 		perm.vmid = QCOM_SCM_VMID_HLOS;
+ 		perm.perm = QCOM_SCM_PERM_RW;
+ 
+ 		ret = qcom_scm_assign_mem(pas->region_assign_phys[offset],
+ 					  pas->region_assign_size[offset],
+ 					  &pas->region_assign_owners[offset],
+ 					  &perm, 1);
+ 		if (ret < 0)
+ 			dev_err(pas->dev, "unassign memory %d failed\n", offset);
+ 	}
+ }
+ 
++static int qcom_pas_read_boot_state(struct qcom_pas *pas)
++{
++	ktime_t start, deadline;
++	unsigned int retries = 0;
++	int ret;
++
++	ret = qcom_q6v5_read_smp2p_state(&pas->q6v5);
++	if (ret != -ENODEV || pas->rproc->ops->start)
++		return ret;
++
++	/*
++	 * The IRQ domain can exist before SMP2P has mapped the remote entry.
++	 * Wait in probe context, after the IRQ getter has released its locks.
++	 * Poll the mapping rather than relying on an edge we may have missed.
++	 */
++	start = ktime_get();
++	deadline = ktime_add_ms(start, QCOM_PAS_SMP2P_WAIT_MS);
++	dev_info(pas->dev, "SMP2P mapping unavailable; waiting up to %u ms\n",
++		 QCOM_PAS_SMP2P_WAIT_MS);
++	do {
++		usleep_range(5000, 10000);
++		ret = qcom_q6v5_read_smp2p_state(&pas->q6v5);
++		retries++;
++	} while (ret == -ENODEV && ktime_before(ktime_get(), deadline));
++
++	dev_info(pas->dev,
++		 "SMP2P map wait: retries=%u elapsed_us=%lld read_ret=%d timed_out=%u\n",
++		 retries, ktime_us_delta(ktime_get(), start), ret, ret == -ENODEV);
++
++	return ret;
++}
++
+ static int qcom_pas_check_boot_state(struct qcom_pas *pas)
+ {
+ 	struct rproc *rproc = pas->rproc;
+ 	int ret;
+ 
+-	ret = qcom_q6v5_read_smp2p_state(&pas->q6v5);
++	ret = qcom_pas_read_boot_state(pas);
+ 	if (rproc->ops->start) {
+ 		/* Reset-capable devices can still use their normal boot path. */
+ 		if (ret)
+ 			dev_warn(pas->dev,
+ 				 "SMP2P read failed: %d; reset-capable boot retained\n", ret);
+ 		return 0;
+ 	}
+ 
+ 	if (ret || rproc->state == RPROC_OFFLINE) {
+ 		dev_err(pas->dev,
+ 			"EL2 attach rejected: state=%u smp2p_ret=%d probe_ret=%d ready_seen=%u; reset unavailable\n",
+ 			rproc->state, ret, ret ? ret : -ENODEV,
+ 			completion_done(&pas->q6v5.start_done));
+ 		/* Leave the device unbound; do not report a successful probe. */
+ 		return ret ? ret : -ENODEV;
+ 	}
+ 
+ 	dev_info(pas->dev, "EL2 attach accepted: state=%u ready_seen=%u\n",
+ 		 rproc->state, completion_done(&pas->q6v5.start_done));
+ 	return 0;
+ }
+ 
+ static int qcom_pas_probe(struct platform_device *pdev)
+ {
+ 	const struct qcom_pas_data *desc;
+ 	struct qcom_pas *pas;
+ 	struct rproc *rproc;
+ 	const char *fw_name, *dtb_fw_name = NULL;
+ 	const struct rproc_ops *ops = &qcom_pas_ops;
+ 	int ret;
+ 
+ 	desc = of_device_get_match_data(&pdev->dev);
+ 	if (!desc)
+ 		return -EINVAL;
+ 
+ 	if (!qcom_scm_is_available())
+ 		return -EPROBE_DEFER;
+ 
+ 	fw_name = desc->firmware_name;
+ 	ret = of_property_read_string(pdev->dev.of_node, "firmware-name",
+-- 
+2.56.0
+

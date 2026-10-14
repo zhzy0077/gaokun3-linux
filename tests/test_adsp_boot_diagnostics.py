@@ -8,9 +8,10 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 PATCH = ROOT / 'patches/el2/0023-remoteproc-qcom-report-attach-errors-and-SMP2P-state.patch'
+WAIT_PATCH = ROOT / 'patches/el2/0024-remoteproc-qcom-wait-for-SMP2P-boot-state.patch'
 FUNCTIONS = {
     'drivers/remoteproc/qcom_q6v5.c': ('qcom_q6v5_read_smp2p_state', 'q6v5_ready_interrupt'),
-    'drivers/remoteproc/qcom_q6v5_pas.c': ('qcom_pas_check_boot_state',),
+    'drivers/remoteproc/qcom_q6v5_pas.c': ('qcom_pas_read_boot_state', 'qcom_pas_check_boot_state'),
     'drivers/soc/qcom/smp2p.c': ('qcom_smp2p_boot_state', 'smp2p_irq_get_irqchip_state'),
 }
 
@@ -25,10 +26,19 @@ def extract_function(source, name):
 
 def functions_from_patch():
     # Include context, so these are postimage functions, not fabricated models.
-    postimage = '\n'.join(line[1:] for line in PATCH.read_text().splitlines()
-                          if line.startswith((' ', '+')) and not line.startswith('+++'))
-    return {(path, name): extract_function(postimage, name)
-            for path, names in FUNCTIONS.items() for name in names}
+    sources = ['\n'.join(line[1:] for line in patch.read_text().splitlines()
+                         if line.startswith((' ', '+')) and not line.startswith('+++'))
+               for patch in (PATCH, WAIT_PATCH)]
+    result = {}
+    for path, names in FUNCTIONS.items():
+        for name in names:
+            for source in reversed(sources):
+                if re.search(r'^(?:static )?(?:int|void|irqreturn_t) ' + name + r'\(', source, re.M):
+                    result[path, name] = extract_function(source, name)
+                    break
+            else:
+                raise AssertionError('Missing final function: ' + name)
+    return result
 
 
 class AdspBootDiagnosticsTests(unittest.TestCase):
@@ -42,6 +52,22 @@ class AdspBootDiagnosticsTests(unittest.TestCase):
                               if line.startswith('+') and not line.startswith('+++'))
         for unwanted in ('+\t\tret = 0;', 'schedule_delayed_work', 'msleep(', '-EPROBE_DEFER'):
             self.assertNotIn(unwanted, additions)
+
+    def test_wait_stays_in_probe_context_and_has_a_fixed_budget(self):
+        patch = WAIT_PATCH.read_text()
+        additions = '\n'.join(line[1:] for line in patch.splitlines()
+                              if line.startswith('+') and not line.startswith('+++'))
+        self.assertIn('#define QCOM_PAS_SMP2P_WAIT_MS\t\t100', additions)
+        self.assertIn('#include <linux/ktime.h>', additions)
+        wait = functions_from_patch()['drivers/remoteproc/qcom_q6v5_pas.c',
+                                      'qcom_pas_read_boot_state']
+        self.assertIn('ret != -ENODEV || pas->rproc->ops->start', wait)
+        self.assertIn('usleep_range(5000, 10000)', wait)
+        self.assertEqual(wait.count('deadline ='), 1)
+        self.assertIn('ret == -ENODEV && ktime_before(ktime_get(), deadline)', wait)
+        for forbidden in ('RPROC_DETACHED', 'rproc_boot(', 'schedule_delayed_work', '-EPROBE_DEFER'):
+            self.assertNotIn(forbidden, additions)
+        self.assertNotIn('drivers/soc/qcom/smp2p.c', patch)
 
     @unittest.skipUnless(shutil.which('cc'), 'native C compiler required')
     def test_read_errors_levels_probe_returns_and_diagnostics(self):
@@ -59,6 +85,21 @@ class AdspBootDiagnosticsTests(unittest.TestCase):
 #define BIT(n) (1UL << (n))
 #define READ_ONCE(v) (v)
 #define IRQ_HANDLED 1
+#define QCOM_PAS_SMP2P_WAIT_MS 100
+typedef long long ktime_t;
+static ktime_t fake_us, mapping_ready_us;
+static unsigned sleep_calls, clock_reads;
+static bool oversleep;
+static ktime_t ktime_get(void) { ++clock_reads; return fake_us; }
+static ktime_t ktime_add_ms(ktime_t t, unsigned ms) { return t + ms * 1000; }
+static bool ktime_before(ktime_t a, ktime_t b) { return a < b; }
+static long long ktime_us_delta(ktime_t a, ktime_t b) { return a - b; }
+static void usleep_range(unsigned low, unsigned high)
+{
+    assert(low == 5000 && high == 10000);
+    ++sleep_calls;
+    fake_us += oversleep ? 200000 : low;
+}
 typedef int irqreturn_t;
 typedef uint32_t u32;
 enum irqchip_irq_state { IRQCHIP_STATE_LINE_LEVEL = 3 };
@@ -97,6 +138,7 @@ static int irq_get_irqchip_state(int irq, int kind, bool *level)
 {
     assert(irq >= 0 && irq < 4 && kind == IRQCHIP_STATE_LINE_LEVEL);
     ++reads;
+    if (fake_us < mapping_ready_us) return -ENODEV;
     /* A failing provider's output is untrusted, even if it writes true. */
     *level = errors[irq] ? true : levels[irq];
     return errors[irq];
@@ -127,12 +169,12 @@ int main(void)
     for (unsigned reset = 0; reset < 2; ++reset) {
         ops.start = reset ? reset_capable_start : NULL;
         for (unsigned mask = 0; mask < 16; ++mask) {
-            memset(messages, 0, sizeof(messages)); reads = 0;
+            memset(messages, 0, sizeof(messages)); reads = sleep_calls = clock_reads = 0;
             r.state = RPROC_OFFLINE; q->running = false;
             for (unsigned j = 0; j < 4; ++j) levels[j] = !!(mask & BIT(j));
             int ret = qcom_pas_check_boot_state(&pas);
             bool attachable = mask == 3;
-            assert(reads == 4);
+            assert(reads == 4 && sleep_calls == 0 && clock_reads == 0);
             assert(ret == ((reset || attachable) ? 0 : -ENODEV));
             assert(r.state == (attachable ? RPROC_DETACHED : RPROC_OFFLINE));
             assert(q->running == attachable);
@@ -149,13 +191,16 @@ int main(void)
         ops.start = reset ? reset_capable_start : NULL;
         for (unsigned pos = 0; pos < 4; ++pos) {
             for (unsigned e = 0; e < sizeof(errnos)/sizeof(errnos[0]); ++e) {
-                memset(messages, 0, sizeof(messages)); reads = 0;
+                memset(messages, 0, sizeof(messages)); reads = sleep_calls = 0;
                 memset(errors, 0, sizeof(errors)); errors[pos] = errnos[e];
                 levels[0] = levels[1] = true; levels[2] = levels[3] = false;
                 r.state = RPROC_OFFLINE; q->running = false;
                 int ret = qcom_pas_check_boot_state(&pas);
                 assert(ret == (reset ? 0 : errnos[e]));
-                assert(reads == 4 && !q->running && r.state == RPROC_OFFLINE);
+                unsigned expected_sleeps = !reset && errnos[e] == -ENODEV ? 20 : 0;
+                assert(sleep_calls == expected_sleeps && reads == 4 * (int)(expected_sleeps + 1));
+                assert(!q->running && r.state == RPROC_OFFLINE);
+                if (expected_sleeps) assert(strstr(messages, "timed_out=1"));
                 char expected[32]; snprintf(expected, sizeof(expected), "=-1/%d", errnos[e]);
                 assert(strstr(messages, expected));
                 if (reset) assert(strstr(messages, "reset-capable boot retained"));
@@ -170,6 +215,42 @@ int main(void)
     assert(q->start_done == 1 && strstr(messages, "SMP2P ready IRQ:"));
     assert(qcom_q6v5_read_smp2p_state(q) == 0);
     assert(strstr(messages, "ready_seen=1"));
+
+    /* Reproduce the actual race: mapping appears after the initial read.
+     * There is no consumer ready edge/completion in this model. */
+    ops.start = NULL;
+    for (unsigned delay = 5000; delay <= 100000; delay += 5000) {
+        memset(messages, 0, sizeof(messages)); reads = sleep_calls = 0;
+        r.state = RPROC_OFFLINE; q->running = false; q->start_done = 0;
+        levels[0] = levels[1] = true; levels[2] = levels[3] = false;
+        mapping_ready_us = fake_us + delay;
+        assert(qcom_pas_check_boot_state(&pas) == 0);
+        assert(sleep_calls == delay / 5000 && reads == 4 * (int)(sleep_calls + 1));
+        assert(q->running && r.state == RPROC_DETACHED && !q->start_done);
+        assert(strstr(messages, "read_ret=0 timed_out=0"));
+    }
+    /* Mapping availability is not permission to ignore low/fatal/stop levels. */
+    for (unsigned mask = 0; mask < 16; ++mask) {
+        memset(messages, 0, sizeof(messages)); sleep_calls = 0;
+        r.state = RPROC_OFFLINE; q->running = false;
+        for (unsigned j = 0; j < 4; ++j) levels[j] = !!(mask & BIT(j));
+        mapping_ready_us = fake_us + 5000;
+        assert(qcom_pas_check_boot_state(&pas) == (mask == 3 ? 0 : -ENODEV));
+        assert(sleep_calls == 1 && q->running == (mask == 3));
+    }
+    memset(messages, 0, sizeof(messages)); sleep_calls = 0;
+    r.state = RPROC_OFFLINE; q->running = false;
+    levels[0] = levels[1] = true; levels[2] = levels[3] = false;
+    mapping_ready_us = fake_us + 5000; errors[2] = -EIO;
+    assert(qcom_pas_check_boot_state(&pas) == -EIO && sleep_calls == 1 && !q->running);
+    assert(strstr(messages, "read_ret=-5 timed_out=0"));
+    memset(errors, 0, sizeof(errors));
+    /* A delayed scheduler wakeup must not start another timeout budget. */
+    memset(messages, 0, sizeof(messages)); sleep_calls = 0; oversleep = true;
+    mapping_ready_us = fake_us + 1000000;
+    assert(qcom_pas_check_boot_state(&pas) == -ENODEV && sleep_calls == 1);
+    assert(strstr(messages, "elapsed_us=200000") && strstr(messages, "timed_out=1"));
+    oversleep = false; mapping_ready_us = 0;
 
     /* Lower-level diagnostics retain raw samples and observe a released consumer. */
     memset(messages, 0, sizeof(messages)); message_count = 0;
@@ -193,7 +274,7 @@ int main(void)
     qcom_smp2p_boot_state(&entry, "notify", 6);
     assert(strstr(messages, "notify: entry=slave-kernel sample=0x6"));
     assert(strstr(messages, "enabled=0")); /* Late notification logged with consumer IRQs disabled. */
-    puts("PASS: 32 level cases, 32 error cases, error precedence, ready IRQ and SMP2P diagnostics");
+    puts("PASS: 64 level/error cases, 20 delayed mappings, 16 post-mapping states, error/timeout boundaries and diagnostics");
     return 0;
 }
 '''
@@ -205,7 +286,7 @@ int main(void)
                                      '-Wno-unused-parameter', str(path), '-o', str(binary)],
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            subprocess.run([str(binary)], check=True)
+            subprocess.run([str(binary)], check=True, timeout=10)
 
 
 if __name__ == '__main__':
