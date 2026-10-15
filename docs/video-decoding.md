@@ -2,7 +2,8 @@
 
 The `iris-sc8280xp` test branch replaces the old legacy Venus additions with
 SC8280XP platform data for Iris and enables the codec in the Gaokun board DT.
-Hardware playback validation is pending a boot into the test kernel.
+The test kernel boots and registers Iris, but EL2 firmware startup remains
+blocked. See the runtime findings below.
 
 ## Integration
 
@@ -103,3 +104,35 @@ test HEVC separately when the browser exposes that codec.
 
 The pre-boot baseline on `7.2.9-gaokun3-el2+` played all 90 H.264 frames but
 logged zero V4L2 output frames, correctly failing the hardware-playback check.
+
+## EL2 runtime findings (2026-10-15)
+
+On `7.2.9-iris1-gaokun3-el2+`, Iris registers decoder and encoder nodes.
+Opening either initially fails at `PAS_INIT_IMAGE`: SCM returns -2, mapped
+to Linux -EINVAL. The packaged driver reports this to userspace as ENOMEM.
+
+Temporary diagnostic modules built against the exact CI development RPM
+established the following:
+
+| Experiment | Result | CI run |
+| --- | --- | --- |
+| Use a PAS context with TZMEM and prepared authentication | Metadata initialization, memory setup and authentication succeed; video protection-range setup fails with -EIO | [38681846600](https://github.com/zhzy0077/linux-gaokun-buildbot/actions/runs/38681846600) |
+| Temporarily skip protection-range setup | Firmware-ready polling times out | [38682067019](https://github.com/zhzy0077/linux-gaokun-buildbot/actions/runs/38682067019) |
+| Query the firmware resource table before authentication | TrustZone returns -EIO and supplies no usable table | [38682333207](https://github.com/zhzy0077/linux-gaokun-buildbot/actions/runs/38682333207) |
+
+The first error is caused by missing PAS metadata sharing. Authentication
+success alone does not demonstrate that the processor started executing.
+The remaining timeout requires investigation of firmware IOMMU mappings and
+the EL2 reset/start sequence. The resource-query failure alone does not establish
+that the API is unsupported.
+
+[Upstream EL2 support](https://lkml.iu.edu/2508.2/04531.html) requires a separate
+firmware IOMMU domain and mappings for firmware and its device resources.
+[The PAS migration patch](https://www.mail-archive.com/linux-kernel@vger.kernel.org/msg2659652.html)
+also explains the missing context and shared-memory preparation.
+SC8280XP mapping and reset details must be established before adapting that
+support. An EL1 comparison requires the Qualcomm hypervisor boot path.
+
+The diagnostic patch in `tools/video/diagnostic` is excluded from the normal
+kernel patch series. Its options default off. All three tests restored the
+packaged Iris module afterward; no runtime hardware-decoding test has passed.
