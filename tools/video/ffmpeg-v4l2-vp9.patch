@@ -1,0 +1,16 @@
+--- a/libavcodec/v4l2_m2m_dec.c
++++ b/libavcodec/v4l2_m2m_dec.c
+@@ -249,6 +249,13 @@
+ 
+     *pdst_len = 0;
+     av_freep(pdst_data);
++
++    /* VP9 extradata is a container configuration record, not a coded frame.
++     * Prepending it corrupts the first keyframe submitted to V4L2. */
++    if (avctx->codec_id == AV_CODEC_ID_VP9) {
++        av_log(avctx, AV_LOG_DEBUG, "Ignoring %d bytes of VP9 configuration metadata\n", src_len);
++        return 0;
++    }
+ 
+     if (avctx->codec_id == AV_CODEC_ID_H264)
+         len = h264_xd_copy(src_data, src_len, NULL);

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [iris-sc8280xp]
-    paths: [.github/workflows/gaokun-video-userspace.yml]
+    paths: [.github/workflows/gaokun-video-userspace.yml, tools/video/ffmpeg-v4l2-vp9.patch]
 
 permissions:
   contents: read
@@ -31,6 +31,7 @@ jobs:
           set -euxo pipefail
           mkdir -p "$GITHUB_WORKSPACE/ffmpeg-stage"
           cd ffmpeg-source
+          patch -p1 --fuzz=0 < "$GITHUB_WORKSPACE/tools/video/ffmpeg-v4l2-vp9.patch"
           ./configure --prefix="$GITHUB_WORKSPACE/ffmpeg-stage" \
             --enable-shared --disable-static --disable-autodetect \
             --enable-libdrm --enable-v4l2-m2m --enable-pthreads --disable-doc --disable-debug \
@@ -52,6 +53,8 @@ jobs:
           python3 tools/video/check-ffmpeg-drm.py > ffmpeg-stage/drm-capabilities.json
           printf '%s\n' "$FFMPEG_REF" > ffmpeg-stage/source-commit.txt
           cp ffmpeg-source/ffbuild/config.log ffmpeg-stage/config.log
+          cp tools/video/ffmpeg-v4l2-vp9.patch ffmpeg-stage/
+          git rev-parse HEAD > ffmpeg-stage/integration-commit.txt
           cp ffmpeg-source/COPYING.LGPLv2.1 ffmpeg-stage/
           tar -C ffmpeg-stage -cJf ffmpeg-v4l2-drm-arm64.tar.xz .
           sha256sum ffmpeg-v4l2-drm-arm64.tar.xz > ffmpeg-v4l2-drm-arm64.tar.xz.sha256
