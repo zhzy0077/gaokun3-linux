@@ -1,0 +1,57 @@
+name: Build Firefox with V4L2 playback and probe fixes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firefox:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    env:
+      MOZBUILD_STATE_PATH: ${{ github.workspace }}/mozbuild
+      MOZ_AUTOMATION: '1'
+    steps:
+      - uses: actions/checkout@v6
+      - name: Fetch verified Firefox 158 source
+        run: |
+          set -euxo pipefail
+          curl --fail --location --retry 3 https://archive.mozilla.org/pub/firefox/releases/158.0/source/firefox-158.0.source.tar.xz -o firefox-source.tar.xz
+          echo '14b8ffdc325a234061db14dea9bd144786dc2c84468a5dfe2bb70bb9558f63f73427cf244eaf461010ee01dfdf04f2cae68bae9f07b4820603a4bcd4462f7960  firefox-source.tar.xz' | sha512sum -c -
+          mkdir firefox-source
+          tar -xJf firefox-source.tar.xz -C firefox-source --strip-components=1
+          patch -d firefox-source -p1 --fuzz=0 < tools/video/firefox-v4l2.patch
+      - name: Bootstrap build tools
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y python3-venv python3-dev build-essential curl zip unzip
+          cd firefox-source
+          ./mach bootstrap --application-choice=browser --no-interactive
+      - name: Build and package Firefox
+        run: |
+          set -euxo pipefail
+          cd firefox-source
+          cat > .mozconfig <<'EOF'
+          ac_add_options --enable-application=browser
+          ac_add_options --enable-release
+          ac_add_options --disable-debug
+          ac_add_options --disable-tests
+          ac_add_options --disable-updater
+          mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/obj-video
+          mk_add_options MOZ_MAKE_FLAGS=-j4
+          EOF
+          ./mach build
+          ./mach package
+          mkdir -p ../artifact
+          cp obj-video/dist/firefox-*.tar.* ../artifact/
+          cp ../tools/video/firefox-v4l2.patch ../artifact/
+          git -C .. rev-parse HEAD > ../artifact/integration-commit.txt
+          cd ../artifact
+          sha256sum firefox-*.tar.* > SHA256SUMS
+      - uses: actions/upload-artifact@v6
+        with:
+          name: firefox-v4l2-arm64
+          path: artifact/

@@ -1,0 +1,92 @@
+--- a/widget/gtk/GfxInfo.cpp
++++ b/widget/gtk/GfxInfo.cpp
+@@ -9,6 +9,9 @@
+ #include <gbm.h>
+ #include <glib.h>
+ #include <poll.h>
++#ifdef __linux__
++#  include <sys/syscall.h>
++#endif
+ #include <sys/types.h>
+ #include <sys/utsname.h>
+ #include <sys/wait.h>
+@@ -206,6 +209,16 @@
+   int pid = *aPID;
+   *aPID = -1;
+ 
++  int processFd = -1;
++#if defined(__linux__) && defined(SYS_pidfd_open)
++  processFd = syscall(SYS_pidfd_open, pid, 0);
++#endif
++  auto closeProcessFd = mozilla::MakeScopeExit([&] {
++    if (processFd >= 0) {
++      close(processFd);
++    }
++  });
++
+   while (true) {
+     int ret = waitpid(pid, &status, WNOHANG);
+     if (ret > 0) {
+@@ -231,8 +244,19 @@
+                       << "): process hangs\n";
+       return false;
+     }
+-    // Wait 50ms to another waitpid() check.
+-    usleep(50000);
++    // Wait for this child to exit without adding a fixed delay per device.
++    if (processFd >= 0) {
++      struct pollfd childPoll{};
++      childPoll.fd = processFd;
++      childPoll.events = POLLIN;
++      const int remaining =
++          static_cast<int>((deadline - TimeStamp::Now()).ToMilliseconds());
++      if (remaining > 0) {
++        poll(&childPoll, 1, remaining);
++      }
++    } else {
++      usleep(1000);
++    }
+   }
+ 
+   return WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS;
+--- a/dom/media/platforms/PDMFactory.cpp
++++ b/dom/media/platforms/PDMFactory.cpp
+@@ -645,15 +645,16 @@
+ #ifdef MOZ_FFMPEG
+   if (StaticPrefs::media_ffmpeg_enabled() &&
+       StaticPrefs::media_rdd_ffmpeg_enabled()) {
+-    // Prefer system FFmpeg first only when Vulkan is wanted and
+-    // PreferSystemFFmpegForVulkan() is true; otherwise leave ffvpx first.
+-    const bool preferSystemForVulkan =
+-        gfx::gfxVars::CanUseVulkanHardwareVideoDecoding() &&
+-        FFmpegRuntimeLinker::PreferSystemFFmpegForVulkan();
++    // Allow V4L2 users to prefer their system decoder while keeping FFVPX
++    // available as a fallback.
++    const bool preferSystemFFmpeg =
++        StaticPrefs::media_ffmpeg_prefer_system() ||
++        (gfx::gfxVars::CanUseVulkanHardwareVideoDecoding() &&
++         FFmpegRuntimeLinker::PreferSystemFFmpegForVulkan());
+     PDM_INIT_LOG("Insert system FFmpeg before ffvpx: {}",
+-                 preferSystemForVulkan);
++                 preferSystemFFmpeg);
+     if (!StartupPDM(FFmpegRuntimeLinker::CreateDecoder(),
+-                    preferSystemForVulkan)) {
++                    preferSystemFFmpeg)) {
+       mFailureFlags += GetFailureFlagBasedOnFFmpegStatus(
+           FFmpegRuntimeLinker::LinkStatusCode());
+     }
+--- a/modules/libpref/init/StaticPrefList.yaml
++++ b/modules/libpref/init/StaticPrefList.yaml
+@@ -12929,6 +12929,12 @@
+   mirror: always
+ 
+ #ifdef MOZ_FFMPEG
++# Prefer the system FFmpeg module, retaining FFVPX as a fallback.
++-   name: media.ffmpeg.prefer-system
++    type: RelaxedAtomicBool
++    value: false
++    mirror: always
++
+ -   name: media.ffmpeg.enabled
+     type: RelaxedAtomicBool
+   #if defined(XP_MACOSX)
