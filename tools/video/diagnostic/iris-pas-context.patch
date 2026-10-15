@@ -1,0 +1,76 @@
+--- a/drivers/media/platform/qcom/iris/iris_firmware.c
++++ b/drivers/media/platform/qcom/iris/iris_firmware.c
+@@ -4,6 +4,7 @@
+  */
+ 
+ #include <linux/firmware.h>
++#include <linux/moduleparam.h>
+ #include <linux/firmware/qcom/qcom_scm.h>
+ #include <linux/of_address.h>
+ #include <linux/of_reserved_mem.h>
+@@ -16,7 +17,13 @@
+ 
+ #define MAX_FIRMWARE_NAME_SIZE	128
+ 
+-static int iris_load_fw_to_memory(struct iris_core *core, const char *fw_name)
++/* Explicit opt-in for the Gaokun EL2 diagnostic module. */
++static bool firmware_shm_bridge;
++module_param(firmware_shm_bridge, bool, 0444);
++MODULE_PARM_DESC(firmware_shm_bridge, "Share PAS metadata and firmware with TrustZone (Gaokun EL2 test)");
++
++static int iris_load_fw_to_memory(struct iris_core *core, const char *fw_name,
++                                 struct qcom_scm_pas_context *ctx)
+ {
+ 	const struct firmware *firmware = NULL;
+ 	struct device *dev = core->dev;
+@@ -53,8 +60,12 @@
+ 		goto err_release_fw;
+ 	}
+ 
+-	ret = qcom_mdt_load(dev, firmware, fw_name,
+-			    IRIS_PAS_ID, mem_virt, mem_phys, res_size, NULL);
++	ctx->dev = dev;
++	ctx->pas_id = IRIS_PAS_ID;
++	ctx->mem_phys = mem_phys;
++	ctx->mem_size = res_size;
++	ctx->use_tzmem = firmware_shm_bridge;
++	ret = qcom_mdt_pas_load(ctx, firmware, fw_name, mem_virt, NULL);
+ 
+ 	memunmap(mem_virt);
+ err_release_fw:
+@@ -65,6 +76,7 @@
+ 
+ int iris_fw_load(struct iris_core *core)
+ {
++	struct qcom_scm_pas_context ctx = { 0 };
+ 	const struct tz_cp_config *cp_config;
+ 	const char *fwpath = NULL;
+ 	int i, ret;
+@@ -74,13 +86,23 @@
+ 	if (ret)
+ 		fwpath = core->iris_firmware_desc->fwname;
+ 
+-	ret = iris_load_fw_to_memory(core, fwpath);
++	if (firmware_shm_bridge && !of_machine_is_compatible("huawei,gaokun3"))
++		return -EINVAL;
++
++	ret = iris_load_fw_to_memory(core, fwpath, &ctx);
+ 	if (ret) {
+-		dev_err(core->dev, "firmware download failed\n");
+-		return -ENOMEM;
++		dev_err(core->dev, "firmware download failed: %d (shm_bridge=%u)\n",
++			ret, firmware_shm_bridge);
++		if (ctx.ptr)
++			qcom_scm_pas_metadata_release(&ctx);
++		return ret;
+ 	}
+ 
+-	ret = qcom_scm_pas_auth_and_reset(IRIS_PAS_ID);
++	dev_info(core->dev, "firmware loaded (shm_bridge=%u); authenticating\n",
++		 firmware_shm_bridge);
++	ret = qcom_scm_pas_prepare_and_auth_reset(&ctx);
++	if (ctx.ptr)
++		qcom_scm_pas_metadata_release(&ctx);
+ 	if (ret)  {
+ 		dev_err(core->dev, "auth and reset failed: %d\n", ret);
+ 		return ret;
