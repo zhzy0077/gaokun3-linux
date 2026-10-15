@@ -20,7 +20,11 @@ def main():
     parser.add_argument('--codecs', nargs='+', choices=('h264', 'vp9', 'hevc'),
                         default=['h264', 'vp9'])
     parser.add_argument('--firefox', default='/usr/lib64/firefox/firefox')
+    parser.add_argument('--loops', type=int, default=1,
+                        help='Repeat playback to exercise decoder drain and restart')
     args = parser.parse_args()
+    if args.loops < 1:
+        parser.error('--loops must be positive')
     work = args.results.resolve()
     work.mkdir(parents=True, exist_ok=False)
     state = {'expected': None, 'result': None}
@@ -67,22 +71,28 @@ def main():
 <h1>Iris hardware video test</h1><video controls muted autoplay width="960"></video>
 <pre id="status">Playing CODEC</pre><script>
 const codec = CODEC_JSON;
+const loops = LOOPS_JSON;
 const v = document.querySelector('video');
 let sent = false;
+let completedPlaybacks = 0;
 async function finish(error) {
   if (sent) return; sent = true;
   const q = v.getVideoPlaybackQuality();
-  const result = {codec, error, currentTime:v.currentTime, duration:v.duration,
+  const result = {codec, error, completedPlaybacks, currentTime:v.currentTime, duration:v.duration,
     totalVideoFrames:q.totalVideoFrames, droppedVideoFrames:q.droppedVideoFrames};
   document.querySelector('#status').textContent = JSON.stringify(result,null,2);
   await fetch('/result',{method:'POST',body:JSON.stringify(result)});
 }
-v.onended=()=>finish(null);
+v.onended=()=>{
+  if (++completedPlaybacks === loops) { finish(null); return; }
+  v.currentTime=0;
+  v.play().catch(e=>finish(String(e)));
+};
 v.onerror=()=>finish(v.error ? {code:v.error.code,message:v.error.message} : 'video error');
 v.src=VIDEO_JSON;
 v.play().catch(e=>finish(String(e)));
-setTimeout(()=>finish('playback timeout'),30000);
-</script>'''.replace('CODEC_JSON', json.dumps(codec)).replace('VIDEO_JSON', json.dumps(video)).replace('Playing CODEC', 'Playing ' + codec)
+setTimeout(()=>finish('playback timeout'),30000 * loops);
+</script>'''.replace('CODEC_JSON', json.dumps(codec)).replace('LOOPS_JSON', str(args.loops)).replace('VIDEO_JSON', json.dumps(video)).replace('Playing CODEC', 'Playing ' + codec)
             (work / 'index.html').write_text(page)
             profile = work / ('profile-' + codec)
             profile.mkdir()
@@ -104,7 +114,7 @@ setTimeout(()=>finish('playback timeout'),30000);
                     f'http://127.0.0.1:{server.server_port}/index.html'], env=env,
                     stdout=stderr, stderr=stderr, start_new_session=True)
                 try:
-                    deadline = time.monotonic() + 45
+                    deadline = time.monotonic() + 30 * args.loops + 15
                     while not done.wait(.2) and proc.poll() is None and time.monotonic() < deadline:
                         pass
                 finally:

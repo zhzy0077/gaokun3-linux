@@ -3,8 +3,8 @@
 The `iris-sc8280xp` test branch replaces the old legacy Venus additions with
 SC8280XP platform data for Iris and enables the codec in the Gaokun board DT.
 A CI-built direct-boot diagnostic module starts the firmware and decodes
-H.264 and HEVC, including Firefox playback. VP9 drain handling and persistent
-integration are under validation. See the runtime findings below.
+H.264, HEVC and VP9, including repeated Firefox playback. Suspend/resume and
+persistent integration remain under validation. See the runtime findings below.
 
 ## Integration
 
@@ -100,7 +100,7 @@ python3 tools/video/validate-firefox.py --samples /path/to/playback-results \
 
 This opens temporary Firefox profiles for H.264 and VP9, plays the local
 samples, records browser frame counters, and requires actual V4L2 output-frame
-logs. It leaves the regular Firefox profile untouched. `--codecs hevc` can
+logs. Add `--loops 3` to exercise repeated playback. It leaves the regular Firefox profile untouched. `--codecs hevc` can
 test HEVC separately when the browser exposes that codec.
 
 The pre-boot baseline on `7.2.9-gaokun3-el2+` played all 90 H.264 frames but
@@ -147,16 +147,16 @@ maps IOVA zero to the 5 MiB firmware reservation. Direct XTSS reset release
 starts the firmware. Both module parameters and board compatibility checks
 limit this experiment to Gaokun.
 
-H.264 and HEVC each passed five decoded-frame SHA256 comparisons and a
-60-second looped decode. Firefox 158 imported 90 V4L2 DMA-buffer frames for
+H.264 and HEVC each passed five decoded-frame SHA256 comparisons. Initial
+60-second loop commands exited successfully, but lacked `-xerror`; subsequent
+strict checks exposed restart errors, so those loop results are insufficient. Firefox 158 imported 90 V4L2 DMA-buffer frames for
 each codec. The checker now recognizes its `V4L2 locking dmabuf surface`
 message. Firefox VP9 selects bundled FFVPX software decoding; the obsolete
 `media.ffvpx.enabled` preference has no effect in this version.
 
-VP9's first 90 frames match software decoding. Its empty firmware EOS packet
-has flags `0x20000021` (including EOS and DROP_FRAME); Iris propagates ERROR
-and userspace receives an extra corrupt frame. The next diagnostic preserves
-empty EOS completion. A separate UBSAN finding showed `metadata_idx` reaching
+VP9's empty firmware EOS packet has flags `0x20000021` (including EOS and
+DROP_FRAME). Preserving empty EOS completion fixes the extra corrupt frame
+previously produced by propagating ERROR. A separate UBSAN finding showed `metadata_idx` reaching
 32 for the 32-element timestamp array; wrapping immediately after increment
 fixes the invalid index. Both changes remain in the diagnostic patch.
 
@@ -167,28 +167,43 @@ Compliance returned 41/48 passes, with failures in bus_info prefix, source
 change events, initial colorspace and buffer ownership checks. Suspend/resume,
 persistent boot integration and Firefox VP9 selection remain to validate.
 
-## Latest VP9 validation
+## Clean-boot validation (2026-10-15)
 
-Latest CI run 38684029428, commit aafa1829ac2120dbce9031378765db0930967603,
-built a timestamp-ring bounds fix and preserves an empty EOS packet carrying
-DROP_FRAME. VP9 now passes five full SHA256 comparisons and DRM PRIME output.
-Sustained looping subsequently triggered firmware sys error data2=deadbead,
-automatic reload, repeated session errors, and a vb2_start_streaming warning.
-An isolated Firefox copy with bundled libmozavcodec disabled attempted VP9
-in parallel; it failed with MEDIA_OVERFLOW. Next run must test sequentially
-on a clean boot to distinguish looping from concurrency.
+Boot ID `59454924-d23c-4daf-af8d-df6577b37487` runs
+`7.2.9-iris1-gaokun3-el2+`. Direct VPU2 startup works after a clean reboot,
+independently of earlier PAS authentication experiments.
 
-Test FFmpeg terminated. rmmod qcom_iris is stuck in __synchronize_irq during
-iris_vpu_power_off; runtime restore could not complete. Temporary DTBO file
-removed; overlay and unloading driver remain in memory until reboot. Packaged
-modules and boot payloads were never replaced. One-shot gaokun-iris1.conf
-selected for clean reboot; boot ID before reboot a61b2702-fb6d-43ed-aaff-4e627b0447f6.
+VP9 continuous 60-second decoding passes all 1800 frames, with software and
+hardware SHA256 `743c7ca34b9b61f85e0ed579798a7055c7d578edd4bad2f5b1eac769be5b7c96`.
+Looping a three-second VP9 input alone reproduces the firmware crash after
+90 frames. The trace records both queues stopping, capture restarting before
+input, then a source-change sequence and firmware `data2=deadbead`.
 
-Evidence: diagnostic-38684029428/kernel-final.log, remove-stack.txt, irq-stack.txt;
-playback-fixed/decode.json; firefox-isolated-vp9/firefox.json.
+CI 38685339622 fixes the teardown IRQ/mutex deadlock by quiescing the IRQ before
+acquiring the core mutex and cancelling delayed recovery before removal.
+Module unload/reload now succeeds after reproducing the firmware failure.
+CI 38685927191 adds stream transition logging. Internal buffer lifetime tracing
+identified duplicate scratch registrations on restart. Reusing retained slots
+fixes VP9 looping (1800 frames), but H.264 fails at restart. CI 38687139949
+explicitly releases the scratch registrations before replacing them. H.264
+HEVC and VP9 each pass five pixel-checksum comparisons, DRM PRIME export and
+1800-frame/60-second loops with that version. No new firmware, IOMMU or kernel
+warning was logged during these checks. Firefox then completed three playbacks
+of each codec, importing 270 hardware frames per codec.
 
-After reboot: verify new boot ID, reload only latest CI test module and overlay,
-run VP9 loops alone first. Investigate firmware recovery IRQ/lock ordering
-before further concurrent playback. H.264/HEVC previously passed 60-second
-loops and Firefox hardware output. Persistent integration and suspend testing
-remain pending.
+Firefox VP9 normally selects bundled FFVPX. An isolated browser copy with that
+library disabled now plays all 90 frames through V4L2 DRM PRIME. CI 38686318912
+omits the 12-byte VP9 configuration record that corrupted the first keyframe.
+H.264, HEVC and VP9 each imported 90 hardware frames with the new libraries;
+that sequential browser run dropped 5, 4 and 3 frames respectively.
+
+Current evidence: `clean-boot-59454924/`, including `kernel-loop-trace.log`,
+`vp9-loop-trace.log`, and `firefox-vp9-libtrace/`.
+Persistent boot integration, Firefox decoder ordering, CAMSS probe latency,
+and suspend/resume remain pending.
+
+CI 38687787302 clears the mem2mem stopped state on capture restart and decoder
+START. All three codecs pass five fresh hash comparisons, DRM PRIME export and
+450-frame loops without the previous EOS-event timeout warnings. This is the
+current temporary module. Firefox repeated playback also passes: 270 hardware
+frames imported per codec. Suspend/resume is the next required device check.
