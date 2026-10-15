@@ -95,7 +95,7 @@ setTimeout(()=>finish('playback timeout'),30000);
                 f'user_pref({json.dumps(k)}, {json.dumps(v)});\n' for k, v in prefs.items()))
             env = dict(os.environ,
                        LD_LIBRARY_PATH=str(args.library_dir.resolve()),
-                       MOZ_LOG='PlatformDecoderModule:5,Dmabuf:5',
+                       MOZ_LOG='PlatformDecoderModule:5,FFmpegVideo:5,Dmabuf:5',
                        MOZ_LOG_FILE=str(work / (codec + '-media.log')))
             state.update(expected=codec, result=None)
             done.clear()

@@ -200,7 +200,18 @@
  int iris_process_streamon_input(struct iris_inst *inst)
 --- a/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
 +++ b/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
-@@ -519,7 +519,9 @@
+@@ -424,6 +424,10 @@
+ 		offset = com_pkt->offset;
+ 	}
+ 
++	if (!filled_len && hfi_flags)
++		dev_info(core->dev, "empty ftb: codec=%u stream=%u tag=%u flags=%#x state=%u substate=%u\n",
++			 inst->codec, uncom_pkt->stream_id, output_tag, hfi_flags, inst->state, inst->sub_state);
++
+ 	if ((hfi_flags & HFI_BUFFERFLAG_EOS) && !filled_len) {
+ 		reinit_completion(&inst->flush_completion);
+ 
+@@ -519,7 +523,9 @@
  	if (hfi_flags & HFI_BUFFERFLAG_DATACORRUPT)
  		flags |= V4L2_BUF_FLAG_ERROR;
  
@@ -250,3 +261,25 @@
  	iris_core_deinit(core);
  
  	video_unregister_device(core->vdev_dec);
+--- a/drivers/media/platform/qcom/iris/iris_hfi_gen1_command.c
++++ b/drivers/media/platform/qcom/iris/iris_hfi_gen1_command.c
+@@ -154,6 +154,9 @@
+ 	struct hfi_session_pkt packet;
+ 	int ret;
+ 
++	dev_info(core->dev, "iris_hfi_gen1_session_start: plane=%u state=%u substate=%u codec=%u\n",
++		 plane, inst->state, inst->sub_state, inst->codec);
++
+ 	if (!V4L2_TYPE_IS_OUTPUT(plane))
+ 		return 0;
+ 
+@@ -192,6 +195,9 @@
+ 	struct hfi_session_pkt pkt;
+ 	u32 flush_type = 0;
+ 	int ret = 0;
++
++	dev_info(core->dev, "iris_hfi_gen1_session_stop: plane=%u state=%u substate=%u codec=%u\n",
++		 plane, inst->state, inst->sub_state, inst->codec);
+ 
+ 	if (inst->domain == DECODER) {
+ 		if (inst->state == IRIS_INST_STREAMING) {
