@@ -1,20 +1,24 @@
 --- a/drivers/media/platform/qcom/iris/iris_firmware.c
 +++ b/drivers/media/platform/qcom/iris/iris_firmware.c
-@@ -4,6 +4,7 @@
+@@ -4,6 +4,8 @@
   */
  
  #include <linux/firmware.h>
 +#include <linux/moduleparam.h>
++#include <linux/slab.h>
  #include <linux/firmware/qcom/qcom_scm.h>
  #include <linux/of_address.h>
  #include <linux/of_reserved_mem.h>
-@@ -16,7 +17,16 @@
+@@ -16,7 +18,19 @@
  
  #define MAX_FIRMWARE_NAME_SIZE	128
  
 -static int iris_load_fw_to_memory(struct iris_core *core, const char *fw_name)
 +/* Explicit opt-in for the Gaokun EL2 diagnostic module. */
 +static bool firmware_shm_bridge;
++static bool firmware_query_resources;
++module_param(firmware_query_resources, bool, 0444);
++MODULE_PARM_DESC(firmware_query_resources, "Query PAS resource table and stop before authentication");
 +static bool firmware_skip_cp;
 +module_param(firmware_skip_cp, bool, 0444);
 +MODULE_PARM_DESC(firmware_skip_cp, "Skip CP range setup for unprotected decoding diagnosis only");
@@ -26,7 +30,7 @@
  {
  	const struct firmware *firmware = NULL;
  	struct device *dev = core->dev;
-@@ -53,8 +63,12 @@
+@@ -53,8 +67,12 @@
  		goto err_release_fw;
  	}
  
@@ -41,7 +45,7 @@
  
  	memunmap(mem_virt);
  err_release_fw:
-@@ -65,6 +79,7 @@
+@@ -65,6 +83,7 @@
  
  int iris_fw_load(struct iris_core *core)
  {
@@ -49,7 +53,7 @@
  	const struct tz_cp_config *cp_config;
  	const char *fwpath = NULL;
  	int i, ret;
-@@ -74,16 +89,31 @@
+@@ -74,16 +93,50 @@
  	if (ret)
  		fwpath = core->iris_firmware_desc->fwname;
  
@@ -69,6 +73,25 @@
  	}
  
 -	ret = qcom_scm_pas_auth_and_reset(IRIS_PAS_ID);
++	if (firmware_shm_bridge && firmware_query_resources) {
++		size_t size = 0;
++		struct resource_table *table;
++
++		table = qcom_scm_pas_get_rsc_table(&ctx, NULL, 0, &size);
++		if (IS_ERR(table)) {
++			dev_err(core->dev, "PAS resource query failed: %ld\n", PTR_ERR(table));
++		} else {
++			dev_info(core->dev, "PAS resource table: %zu bytes\n", size);
++			print_hex_dump(KERN_INFO, "iris resources: ", DUMP_PREFIX_OFFSET,
++				       16, 1, table, min_t(size_t, size, 4096), false);
++			kfree(table);
++		}
++		qcom_scm_pas_shutdown(IRIS_PAS_ID);
++		if (ctx.ptr)
++			qcom_scm_pas_metadata_release(&ctx);
++		return -EAGAIN;
++	}
++
 +	dev_info(core->dev, "firmware loaded (shm_bridge=%u); authenticating\n",
 +		 firmware_shm_bridge);
 +	ret = qcom_scm_pas_prepare_and_auth_reset(&ctx);
