@@ -38,11 +38,13 @@ jobs:
           set -euxo pipefail
           kdir="$GITHUB_WORKSPACE/devel/usr/src/kernels/$KERNEL_RELEASE"
           test "$(cat "$kdir/include/config/kernel.release")" = "$KERNEL_RELEASE"
-          patch --directory="$kdir" -p1 --fuzz=0 < tools/video/diagnostic/iris-pas-context.patch
+          patch --directory="$kdir" -p1 --fuzz=0 < tools/video/diagnostic/iris-direct-boot.patch
           cp -a "$kdir/drivers/media/platform/qcom/iris" iris
           make -C "$kdir" ARCH=arm64 M="$GITHUB_WORKSPACE/iris" -j"$(nproc)" modules
+          make -C "$kdir" ARCH=arm64 M="$GITHUB_WORKSPACE/tools/video/diagnostic/overlay" modules
           mkdir artifact
           cp iris/qcom-iris.ko artifact/
+          cp tools/video/diagnostic/overlay/iris-fw-overlay.ko artifact/
           modinfo artifact/qcom-iris.ko > artifact/modinfo.txt
           cp "$kdir/.config" artifact/kernel.config
           cp "$kdir/Module.symvers" artifact/kernel-Module.symvers
@@ -51,9 +53,10 @@ jobs:
           modinfo -F alias artifact/qcom-iris.ko | grep -Fx 'of:N*T*Cqcom,sc8280xp-venus'
           printf '%s\n' "$GITHUB_SHA" > artifact/source-commit.txt
           printf '%s\n' "$PACKAGE_TAG" > artifact/base-release.txt
-          cp tools/video/diagnostic/iris-pas-context.patch artifact/
+          cp tools/video/diagnostic/iris-direct-boot.patch artifact/
           cd artifact
           sha256sum qcom-iris.ko > qcom-iris.ko.sha256
+          sha256sum iris-fw-overlay.ko > iris-fw-overlay.ko.sha256
       - uses: actions/upload-artifact@v6
         with:
           name: iris-pas-diagnostic

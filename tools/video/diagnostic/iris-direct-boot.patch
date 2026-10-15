@@ -1,0 +1,189 @@
+--- a/drivers/media/platform/qcom/iris/iris_firmware.c
++++ b/drivers/media/platform/qcom/iris/iris_firmware.c
+@@ -4,6 +4,11 @@
+  */
+ 
+ #include <linux/firmware.h>
++#include <linux/iommu.h>
++#include <linux/moduleparam.h>
++#include <linux/of_device.h>
++#include <linux/platform_device.h>
++#include <linux/sizes.h>
+ #include <linux/firmware/qcom/qcom_scm.h>
+ #include <linux/of_address.h>
+ #include <linux/of_reserved_mem.h>
+@@ -15,6 +20,133 @@
+ #define IRIS_PAS_ID				9
+ 
+ #define MAX_FIRMWARE_NAME_SIZE	128
++
++static bool firmware_direct;
++module_param(firmware_direct, bool, 0444);
++MODULE_PARM_DESC(firmware_direct, "Gaokun VPU2 direct firmware boot diagnostic");
++
++/* VPU2 direct boot follows drivers/media/platform/qcom/venus/firmware.c. */
++#define IRIS_DIRECT_TZ_BASE 0xc0000
++#define IRIS_DIRECT_RESET 0x1000
++
++static void iris_direct_reset(struct iris_core *core, bool assert)
++{
++	void __iomem *base = core->reg_base + IRIS_DIRECT_TZ_BASE;
++	u32 size = core->direct_fw_size;
++
++	if (assert) {
++		writel(BIT(0), base + IRIS_DIRECT_RESET);
++		return;
++	}
++	writel(0, base + 0x1028); /* firmware start */
++	writel(size, base + 0x102c); /* firmware end */
++	writel(0, base + 0x1020); /* CPA start */
++	writel(size, base + 0x1024); /* CPA end */
++	writel(size, base + 0x1030); /* nonpixel start */
++	writel(size, base + 0x1034); /* nonpixel end */
++	writel(0, base + IRIS_DIRECT_RESET);
++}
++
++static void iris_direct_cleanup(struct iris_core *core)
++{
++	if (!core->direct_fw_dev)
++		return;
++	if (core->direct_fw_size) {
++		iris_direct_reset(core, true);
++		iommu_unmap(core->direct_fw_domain, 0, core->direct_fw_size);
++		core->direct_fw_size = 0;
++	}
++	if (core->direct_fw_domain) {
++		iommu_detach_device(core->direct_fw_domain, core->direct_fw_dev);
++		iommu_domain_free(core->direct_fw_domain);
++		core->direct_fw_domain = NULL;
++	}
++	platform_device_unregister(to_platform_device(core->direct_fw_dev));
++	core->direct_fw_dev = NULL;
++}
++
++static int iris_direct_load(struct iris_core *core, const char *fwname)
++{
++	struct platform_device_info info = { 0 };
++	const struct firmware *fw;
++	struct platform_device *pdev;
++	struct iommu_domain *domain;
++	struct device_node *np;
++	struct resource res;
++	void *mem;
++	ssize_t size;
++	int ret;
++
++	if (!of_machine_is_compatible("huawei,gaokun3") ||
++	    !of_device_is_compatible(core->dev->of_node, "qcom,sc8280xp-venus"))
++		return -EINVAL;
++	np = of_get_child_by_name(core->dev->of_node, "video-firmware");
++	if (!np)
++		return -ENODEV;
++	ret = of_reserved_mem_region_to_resource(core->dev->of_node, 0, &res);
++	if (ret)
++		goto put_node;
++	info.fwnode = &np->fwnode;
++	info.parent = core->dev;
++	info.name = "iris-direct-firmware";
++	info.dma_mask = DMA_BIT_MASK(32);
++	pdev = platform_device_register_full(&info);
++	if (IS_ERR(pdev)) {
++		ret = PTR_ERR(pdev);
++		goto put_node;
++	}
++	core->direct_fw_dev = &pdev->dev;
++	pdev->dev.of_node = np;
++	ret = of_dma_configure(&pdev->dev, np, true);
++	if (ret)
++		goto cleanup;
++	domain = iommu_paging_domain_alloc(&pdev->dev);
++	if (IS_ERR(domain)) {
++		ret = PTR_ERR(domain);
++		goto cleanup;
++	}
++	ret = iommu_attach_device(domain, &pdev->dev);
++	if (ret) {
++		iommu_domain_free(domain);
++		goto cleanup;
++	}
++	core->direct_fw_domain = domain;
++	ret = request_firmware(&fw, fwname, core->dev);
++	if (ret)
++		goto cleanup;
++	size = qcom_mdt_get_size(fw);
++	if (size <= 0 || size > resource_size(&res) || resource_size(&res) > (6 * SZ_1M)) {
++		ret = -EINVAL;
++		goto release_fw;
++	}
++	iris_direct_reset(core, true);
++	mem = memremap(res.start, resource_size(&res), MEMREMAP_WC);
++	if (!mem) {
++		ret = -ENOMEM;
++		goto release_fw;
++	}
++	ret = qcom_mdt_load_no_init(core->dev, fw, fwname, mem,
++				    res.start, resource_size(&res), NULL);
++	memunmap(mem);
++	if (ret)
++		goto release_fw;
++	ret = iommu_map(domain, 0, res.start, resource_size(&res),
++			IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV, GFP_KERNEL);
++	if (ret)
++		goto release_fw;
++	core->direct_fw_size = resource_size(&res);
++	iris_direct_reset(core, false);
++	dev_info(core->dev, "direct VPU2 boot: %pa, %zu bytes mapped at IOVA 0\n",
++		 &res.start, core->direct_fw_size);
++release_fw:
++	release_firmware(fw);
++cleanup:
++	if (ret)
++		iris_direct_cleanup(core);
++put_node:
++	of_node_put(np);
++	return ret;
++}
+ 
+ static int iris_load_fw_to_memory(struct iris_core *core, const char *fw_name)
+ {
+@@ -73,6 +205,9 @@
+ 					    &fwpath);
+ 	if (ret)
+ 		fwpath = core->iris_firmware_desc->fwname;
++
++	if (firmware_direct)
++		return iris_direct_load(core, fwpath);
+ 
+ 	ret = iris_load_fw_to_memory(core, fwpath);
+ 	if (ret) {
+@@ -104,10 +239,18 @@
+ 
+ int iris_fw_unload(struct iris_core *core)
+ {
++	if (firmware_direct) {
++		iris_direct_cleanup(core);
++		return 0;
++	}
+ 	return qcom_scm_pas_shutdown(IRIS_PAS_ID);
+ }
+ 
+ int iris_set_hw_state(struct iris_core *core, bool resume)
+ {
++	if (firmware_direct) {
++		iris_direct_reset(core, !resume);
++		return 0;
++	}
+ 	return qcom_scm_set_remote_state(resume, 0);
+ }
+--- a/drivers/media/platform/qcom/iris/iris_core.h
++++ b/drivers/media/platform/qcom/iris/iris_core.h
+@@ -120,6 +120,9 @@
+ 	u32					intr_status;
+ 	struct delayed_work			sys_error_handler;
+ 	struct list_head			instances;
++	struct device *direct_fw_dev;
++	struct iommu_domain *direct_fw_domain;
++	size_t direct_fw_size;
+ 	/* encoder and decoder have overlapping caps, so two different arrays are required */
+ 	struct platform_inst_fw_cap		inst_fw_caps_dec[INST_FW_CAP_MAX];
+ 	struct platform_inst_fw_cap		inst_fw_caps_enc[INST_FW_CAP_MAX];
