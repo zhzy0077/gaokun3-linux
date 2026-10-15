@@ -48,7 +48,7 @@ The patch series targets Linux **7.2.9** from the stable tree. CI and local buil
 - `others/0003`: adapted from [chiyuki0325/EGoTouchRev-Linux](https://github.com/chiyuki0325/EGoTouchRev-Linux) to add the Himax HX83121A SPI touchscreen driver
 - `others/0004`: local upstream-based fix for Gaokun UCSI initialization recovery and USB-C DisplayPort state synchronization; see [USB-C DisplayPort recovery](docs/usb-c-displayport.md)
 - `others/0009`, `others/0010` and the rear-camera DTS wiring: adapted from [vahiru/gaokun-android](https://github.com/vahiru/gaokun-android) for the OV13B10 variant, device-tree matching, shared camera/display rail sequencing and camera clock parking; see [camera support and validation](docs/camera_support.md)
-- `media/*`: adapted from the [jhovold/linux](https://github.com/jhovold/linux/commits/wip/sc8280xp-6.16) to add SC8280XP Venus support
+- `media/*`: SC8280XP Iris support adapted from [Dmitry Baryshkov's v3 series](https://lkml.indiana.edu/2601.3/00690.html) and Qualcomm review for Linux 7.2.9; see [video decoding validation](docs/video-decoding.md)
 - `0099`: local patch in this repository to import the current DTS files and `gaokun3_defconfig`
 - **[Optional]** `el2/*`: adapted from [TravMurav/linux](https://github.com/TravMurav/linux/tree/x13s-6.18-v1.1-cxsd) for the EL2 boot path, including SMP2P handover, remoteproc attach/restart flow, SCM/SHM owner handling, and related rpmsg/QRTR/pmic_glink stability fixes
 

@@ -5,10 +5,10 @@ Subject: [PATCH 20/20] arm64: gaokun3: import board support
 
 ---
  .../qcom/sc8280xp-huawei-gaokun3-camera.dtsi  | 309 +++++++++++
- .../boot/dts/qcom/sc8280xp-huawei-gaokun3.dts | 451 ++++++++++++----
+ .../boot/dts/qcom/sc8280xp-huawei-gaokun3.dts | 456 ++++++++++++----
  arch/arm64/configs/gaokun3_defconfig          | 496 ++++++++++++++++++
  arch/arm64/kernel/cpuinfo.c                  |   3 +
- 4 files changed, 1158 insertions(+), 101 deletions(-)
+ 4 files changed, 1163 insertions(+), 101 deletions(-)
  create mode 100644 arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-camera.dtsi
  create mode 100644 arch/arm64/configs/gaokun3_defconfig
 
@@ -328,7 +328,7 @@ index 000000000..347d2df68
 +	};
 +};
 diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
-index cd575e20d..29ce40fc7 100644
+index cd575e20d..665f472 100644
 --- a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
 +++ b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
 @@ -11,6 +11,7 @@
@@ -659,14 +659,14 @@ index cd575e20d..29ce40fc7 100644
 +		mode-gpios = <&tlmm 174 GPIO_ACTIVE_HIGH>;
 +
 +		panel = <&panel>;
- 
--		vdd-supply = <&vreg_misc_3p3>;
--		vddl-supply = <&vreg_s10b>;
++
 +		spi-max-frequency = <12000000>;
 +
 +		touchscreen-size-x = <2560>;
 +		touchscreen-size-y = <1600>;
-+
+ 
+-		vdd-supply = <&vreg_misc_3p3>;
+-		vddl-supply = <&vreg_s10b>;
 +		/*
 +		 * internally handle invert first, two transformations are
 +		 * non-comutative even if we can swap first.
@@ -947,7 +947,7 @@ index cd575e20d..29ce40fc7 100644
  	vdda18-supply = <&vreg_l8c>;
  	vdda33-supply = <&vreg_l2d>;
  
-@@ -1239,15 +1397,15 @@ &usb_2_hsphy3 {
+@@ -1239,19 +1397,24 @@
  };
  
  &usb_2_qmpphy0 {
@@ -967,12 +967,22 @@ index cd575e20d..29ce40fc7 100644
  
  	status = "okay";
  };
-@@ -1300,8 +1458,28 @@ hastings_reg_en: hastings-reg-en-state {
+ 
++&venus {
++	firmware-name = "qcom/sc8280xp/HUAWEI/gaokun3/qcvss8280.mbn";
++	status = "okay";
++};
++
+ &vamacro {
+ 	pinctrl-0 = <&dmic01_default>, <&dmic23_default>;
+ 	pinctrl-names = "default";
+@@ -1300,8 +1463,28 @@ hastings_reg_en: hastings-reg-en-state {
  };
  
  &tlmm {
 +	gpio-reserved-ranges = <70 2>, <74 6>, <83 4>, <125 2>, <128 2>;
-+
+ 
+-	gpio-reserved-ranges = <70 2>, <74 6>, <83 4>, <125 2>, <128 2>, <154 4>;
 +	avdd_reg_en: avdd-reg-en-state {
 +		pins = "gpio52";
 +		function = "gpio";
@@ -986,8 +996,7 @@ index cd575e20d..29ce40fc7 100644
 +		drive-strength = <2>;
 +		bias-disable;
 +	};
- 
--	gpio-reserved-ranges = <70 2>, <74 6>, <83 4>, <125 2>, <128 2>, <154 4>;
++
 +	bl_reg_en: bl-reg-en-state {
 +		pins = "gpio0";
 +		function = "gpio";
@@ -997,7 +1006,7 @@ index cd575e20d..29ce40fc7 100644
  
  	bt_default: bt-default-state {
  		hstp-bt-en-pins {
-@@ -1318,6 +1496,36 @@ hstp-sw-ctrl-pins {
+@@ -1318,6 +1501,36 @@ hstp-sw-ctrl-pins {
  		};
  	};
  
@@ -1034,7 +1043,7 @@ index cd575e20d..29ce40fc7 100644
  	i2c4_default: i2c4-default-state {
  		pins = "gpio171", "gpio172";
  		function = "qup4";
-@@ -1332,6 +1540,13 @@ i2c15_default: i2c15-default-state {
+@@ -1332,6 +1545,13 @@ i2c15_default: i2c15-default-state {
  		bias-pull-up;
  	};
  
@@ -1048,7 +1057,7 @@ index cd575e20d..29ce40fc7 100644
  	mode_pin_active: mode-pin-state {
  		pins = "gpio26";
  		function = "gpio";
-@@ -1411,6 +1626,39 @@ perst-n-pins {
+@@ -1411,6 +1631,39 @@ perst-n-pins {
  		};
  	};
  
@@ -1088,7 +1097,7 @@ index cd575e20d..29ce40fc7 100644
  	ts0_default: ts0-default-state {
  		int-n-pins {
  			pins = "gpio175";
-@@ -1424,7 +1672,6 @@ reset-n-pins {
+@@ -1424,7 +1677,6 @@ reset-n-pins {
  			function = "gpio";
  			drive-strength = <2>;
  			bias-disable;
@@ -1096,7 +1105,7 @@ index cd575e20d..29ce40fc7 100644
  		};
  	};
  
-@@ -1485,3 +1732,5 @@ wlan_en: wlan-en-state {
+@@ -1485,3 +1737,5 @@ wlan_en: wlan-en-state {
  		bias-pull-down;
  	};
  };

@@ -129,6 +129,16 @@ jobs:
           chmod +x scripts/ci/20_build_kernel_variants.sh
           scripts/ci/20_build_kernel_variants.sh
 
+      - name: Validate built video decoder integration
+        run: |
+          set -euxo pipefail
+          python3 tools/video/check-kernel-video.py --out "$KERN_OUT" \
+            --dtb sc8280xp-huawei-gaokun3.dtb > "$ARTIFACT_DIR/video-decoder-standard.json"
+          if [[ "$BUILD_EL2" == "true" ]]; then
+            python3 tools/video/check-kernel-video.py --out "$KERN_OUT_EL2" \
+              --dtb sc8280xp-huawei-gaokun3-el2.dtb > "$ARTIFACT_DIR/video-decoder-el2.json"
+          fi
+
       - name: Build RPM packages
         run: |
           sudo docker run --rm \
@@ -166,6 +176,7 @@ jobs:
             ${{ env.ARTIFACT_DIR }}/kernel-config-*.json
             ${{ env.ARTIFACT_DIR }}/kernel-config-*.config
             ${{ env.ARTIFACT_DIR }}/package-release-body.md
+            ${{ env.ARTIFACT_DIR }}/video-decoder-*.json
 
       - name: Publish package release
         uses: softprops/action-gh-release@v2.6.1
@@ -184,3 +195,4 @@ jobs:
             ${{ env.ARTIFACT_DIR }}/package-manifest.json
             ${{ env.ARTIFACT_DIR }}/kernel-config-*.json
             ${{ env.ARTIFACT_DIR }}/kernel-config-*.config
+            ${{ env.ARTIFACT_DIR }}/video-decoder-*.json
