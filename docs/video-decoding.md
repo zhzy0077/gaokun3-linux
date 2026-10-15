@@ -2,8 +2,9 @@
 
 The `iris-sc8280xp` test branch replaces the old legacy Venus additions with
 SC8280XP platform data for Iris and enables the codec in the Gaokun board DT.
-The test kernel boots and registers Iris, but EL2 firmware startup remains
-blocked. See the runtime findings below.
+A CI-built direct-boot diagnostic module starts the firmware and decodes
+H.264 and HEVC, including Firefox playback. VP9 drain handling and persistent
+integration are under validation. See the runtime findings below.
 
 ## Integration
 
@@ -135,4 +136,59 @@ support. An EL1 comparison requires the Qualcomm hypervisor boot path.
 
 The diagnostic patch in `tools/video/diagnostic` is excluded from the normal
 kernel patch series. Its options default off. All three tests restored the
-packaged Iris module afterward; no runtime hardware-decoding test has passed.
+packaged Iris module afterward. Subsequent direct-boot results follow.
+
+## Direct VPU2 boot results
+
+CI run [38682881203](https://github.com/zhzy0077/linux-gaokun-buildbot/actions/runs/38682881203)
+built the direct loader from the Linux Venus VPU2 boot sequence. A temporary
+firmware child uses SMMU stream `0x2e02` with mask `0x400`; a separate domain
+maps IOVA zero to the 5 MiB firmware reservation. Direct XTSS reset release
+starts the firmware. Both module parameters and board compatibility checks
+limit this experiment to Gaokun.
+
+H.264 and HEVC each passed five decoded-frame SHA256 comparisons and a
+60-second looped decode. Firefox 158 imported 90 V4L2 DMA-buffer frames for
+each codec. The checker now recognizes its `V4L2 locking dmabuf surface`
+message. Firefox VP9 selects bundled FFVPX software decoding; the obsolete
+`media.ffvpx.enabled` preference has no effect in this version.
+
+VP9's first 90 frames match software decoding. Its empty firmware EOS packet
+has flags `0x20000021` (including EOS and DROP_FRAME); Iris propagates ERROR
+and userspace receives an extra corrupt frame. The next diagnostic preserves
+empty EOS completion. A separate UBSAN finding showed `metadata_idx` reaching
+32 for the 32-element timestamp array; wrapping immediately after increment
+fixes the invalid index. Both changes remain in the diagnostic patch.
+
+The patched FFmpeg CLI requires `-no_cvt_hw` to select its INTERNAL DRM PRIME
+configuration. The decoder validator uses that option for `--drm-prime`.
+
+Compliance returned 41/48 passes, with failures in bus_info prefix, source
+change events, initial colorspace and buffer ownership checks. Suspend/resume,
+persistent boot integration and Firefox VP9 selection remain to validate.
+
+## Latest VP9 validation
+
+Latest CI run 38684029428, commit aafa1829ac2120dbce9031378765db0930967603,
+built a timestamp-ring bounds fix and preserves an empty EOS packet carrying
+DROP_FRAME. VP9 now passes five full SHA256 comparisons and DRM PRIME output.
+Sustained looping subsequently triggered firmware sys error data2=deadbead,
+automatic reload, repeated session errors, and a vb2_start_streaming warning.
+An isolated Firefox copy with bundled libmozavcodec disabled attempted VP9
+in parallel; it failed with MEDIA_OVERFLOW. Next run must test sequentially
+on a clean boot to distinguish looping from concurrency.
+
+Test FFmpeg terminated. rmmod qcom_iris is stuck in __synchronize_irq during
+iris_vpu_power_off; runtime restore could not complete. Temporary DTBO file
+removed; overlay and unloading driver remain in memory until reboot. Packaged
+modules and boot payloads were never replaced. One-shot gaokun-iris1.conf
+selected for clean reboot; boot ID before reboot a61b2702-fb6d-43ed-aaff-4e627b0447f6.
+
+Evidence: diagnostic-38684029428/kernel-final.log, remove-stack.txt, irq-stack.txt;
+playback-fixed/decode.json; firefox-isolated-vp9/firefox.json.
+
+After reboot: verify new boot ID, reload only latest CI test module and overlay,
+run VP9 loops alone first. Investigate firmware recovery IRQ/lock ordering
+before further concurrent playback. H.264/HEVC previously passed 60-second
+loops and Firefox hardware output. Persistent integration and suspend testing
+remain pending.
