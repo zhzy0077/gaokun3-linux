@@ -285,7 +285,28 @@
  		if (inst->state == IRIS_INST_STREAMING) {
 --- a/drivers/media/platform/qcom/iris/iris_buffer.c
 +++ b/drivers/media/platform/qcom/iris/iris_buffer.c
-@@ -552,6 +552,8 @@
+@@ -535,6 +535,20 @@
+ 	if (!buffers->size)
+ 		return 0;
+ 
++	/* Streamoff may retain firmware-owned internal buffers. Reuse each
++	 * registered slot instead of registering a second buffer for it.
++	 */
++	list_for_each_entry(buffer, &buffers->list, list) {
++		if (buffer->index != index ||
++		    (buffer->attr & BUF_ATTR_PENDING_RELEASE))
++			continue;
++		if (buffer->buffer_size < buffers->size)
++			return -EINVAL;
++		dev_info(core->dev, "internal reuse: type=%u index=%u addr=%pad\n",
++			 buffer_type, index, &buffer->device_addr);
++		return 0;
++	}
++
+ 	buffer = kzalloc_obj(*buffer);
+ 	if (!buffer)
+ 		return -ENOMEM;
+@@ -552,6 +566,8 @@
  		return -ENOMEM;
  	}
  
@@ -294,7 +315,7 @@
  	list_add_tail(&buffer->list, &buffers->list);
  
  	return 0;
-@@ -600,6 +602,9 @@
+@@ -600,6 +616,9 @@
  	const struct iris_hfi_session_ops *hfi_ops = inst->hfi_session_ops;
  	int ret;
  
@@ -304,7 +325,7 @@
  	ret = hfi_ops->session_queue_buf(inst, buf);
  	if (ret)
  		return ret;
-@@ -775,6 +780,8 @@
+@@ -775,6 +794,8 @@
  			continue;
  		if (!(buffer->attr & BUF_ATTR_QUEUED))
  			continue;
