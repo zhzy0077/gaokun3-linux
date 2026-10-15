@@ -283,3 +283,33 @@
  
  	if (inst->domain == DECODER) {
  		if (inst->state == IRIS_INST_STREAMING) {
+--- a/drivers/media/platform/qcom/iris/iris_buffer.c
++++ b/drivers/media/platform/qcom/iris/iris_buffer.c
+@@ -552,6 +552,8 @@
+ 		return -ENOMEM;
+ 	}
+ 
++	dev_info(core->dev, "internal alloc: type=%u index=%u size=%u addr=%pad state=%u\n",
++		 buffer_type, index, buffer->buffer_size, &buffer->device_addr, inst->state);
+ 	list_add_tail(&buffer->list, &buffers->list);
+ 
+ 	return 0;
+@@ -600,6 +602,9 @@
+ 	const struct iris_hfi_session_ops *hfi_ops = inst->hfi_session_ops;
+ 	int ret;
+ 
++	if (buf->type != BUF_INPUT && buf->type != BUF_OUTPUT && buf->type != BUF_DPB)
++		dev_info(inst->core->dev, "internal queue: type=%u addr=%pad attr=%x state=%u\n",
++			 buf->type, &buf->device_addr, buf->attr, inst->state);
+ 	ret = hfi_ops->session_queue_buf(inst, buf);
+ 	if (ret)
+ 		return ret;
+@@ -775,6 +780,8 @@
+ 			continue;
+ 		if (!(buffer->attr & BUF_ATTR_QUEUED))
+ 			continue;
++		dev_info(inst->core->dev, "internal release: type=%u addr=%pad attr=%x state=%u\n",
++			 buffer->type, &buffer->device_addr, buffer->attr, inst->state);
+ 		buffer->attr |= BUF_ATTR_PENDING_RELEASE;
+ 		ret = hfi_ops->session_release_buf(inst, buffer);
+ 		if (ret) {

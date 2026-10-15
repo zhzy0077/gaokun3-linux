@@ -37,7 +37,7 @@ def main():
             raise RuntimeError(f'{label} failed ({result.returncode}); see {work / (label + ".log")}')
         return result.stdout.strip()
 
-    ff = [args.ffmpeg, '-hide_banner', '-nostdin', '-v', 'info', '-threads', '2']
+    ff = [args.ffmpeg, '-hide_banner', '-nostdin', '-v', 'info', '-xerror', '-threads', '2']
     try:
         report['ffmpeg'] = run('ffmpeg-version', [args.ffmpeg, '-version'])
         if not args.prepare_only:
