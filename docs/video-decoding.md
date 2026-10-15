@@ -56,3 +56,21 @@ test boot. Perform these checks on the device after boot:
 VA-API may still report no `msm_drv_video.so`; this integration uses V4L2 M2M.
 Firefox's sequential scanning of the CAMSS capture nodes is a separate startup
 issue and remains to be fixed in Firefox.
+
+## Playback checker
+
+Use a FFmpeg executable that lists `h264_v4l2m2m`, `hevc_v4l2m2m`, and
+`vp9_v4l2m2m` in `-decoders`. Prepare the 720p samples before the test boot:
+
+```sh
+python3 tools/video/validate-decoder.py --ffmpeg /path/to/ffmpeg \
+  --work-dir /path/to/playback-results --prepare-only
+```
+
+After the test boot, omit `--prepare-only` to perform five hardware/software
+frame-checksum comparisons per codec and 60 seconds of paced decoding per
+codec. The checker saves V4L2 capabilities, the compliance report, FFmpeg logs,
+and a JSON result. `--codecs h264` restricts the first bring-up attempt.
+Compliance failures are recorded separately from playback results; inspect
+that report even when the decode checks pass. Repeat into a separate results
+directory after suspend/resume. Firefox playback remains an additional check.
