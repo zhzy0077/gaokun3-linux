@@ -187,3 +187,37 @@
  	/* encoder and decoder have overlapping caps, so two different arrays are required */
  	struct platform_inst_fw_cap		inst_fw_caps_dec[INST_FW_CAP_MAX];
  	struct platform_inst_fw_cap		inst_fw_caps_enc[INST_FW_CAP_MAX];
+--- a/drivers/media/platform/qcom/iris/iris_common.c
++++ b/drivers/media/platform/qcom/iris/iris_common.c
+@@ -43,7 +43,7 @@
+ 	inst->tss[inst->metadata_idx].ts_us = ts_us;
+ 	inst->tss[inst->metadata_idx].ts_ns = vb->timestamp;
+ 
+-	inst->metadata_idx++;
++	inst->metadata_idx = (inst->metadata_idx + 1) % ARRAY_SIZE(inst->tss);
+ }
+ 
+ int iris_process_streamon_input(struct iris_inst *inst)
+--- a/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
++++ b/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
+@@ -424,6 +424,10 @@
+ 		offset = com_pkt->offset;
+ 	}
+ 
++	if (!filled_len || (hfi_flags & (HFI_BUFFERFLAG_EOS | HFI_BUFFERFLAG_DATACORRUPT)))
++		dev_info(core->dev, "ftb diagnostic: codec=%u stream=%u tag=%u flags=%#x len=%u offset=%u state=%u substate=%u\n",
++			 inst->codec, uncom_pkt->stream_id, output_tag, hfi_flags, filled_len, offset, inst->state, inst->sub_state);
++
+ 	if ((hfi_flags & HFI_BUFFERFLAG_EOS) && !filled_len) {
+ 		reinit_completion(&inst->flush_completion);
+ 
+@@ -530,7 +534,8 @@
+ 
+ error:
+ 	iris_inst_change_state(inst, IRIS_INST_ERROR);
+-	dev_err(core->dev, "error in ftb done\n");
++	dev_err(core->dev, "error in ftb done: stream=%u tag=%u flags=%#x len=%u offset=%u\n",
++		uncom_pkt->stream_id, output_tag, hfi_flags, filled_len, offset);
+ }
+ 
+ struct iris_hfi_gen1_response_pkt_info {

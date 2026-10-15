@@ -118,8 +118,10 @@ setTimeout(()=>finish('playback timeout'),30000);
             logs = '\n'.join(p.read_text(errors='replace') for p in work.glob(codec + '-media.log*'))
             result = state['result'] or {'error': 'Firefox exited or did not report playback'}
             result['v4l2_output_frames_logged'] = logs.count('V4L2 Got one frame output')
+            result['v4l2_dmabuf_frames_logged'] = logs.count('V4L2 locking dmabuf surface')
             report['codecs'][codec] = result
-            if result.get('error') or not result.get('totalVideoFrames') or not result['v4l2_output_frames_logged']:
+            if (result.get('error') or not result.get('totalVideoFrames') or
+                    not (result['v4l2_output_frames_logged'] or result['v4l2_dmabuf_frames_logged'])):
                 raise RuntimeError(f'{codec}: hardware playback not verified; inspect {work}')
         report['status'] = 'hardware_playback_verified'
     except Exception as exc:
