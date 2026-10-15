@@ -33,8 +33,11 @@ jobs:
           cd ffmpeg-source
           ./configure --prefix="$GITHUB_WORKSPACE/ffmpeg-stage" \
             --enable-shared --disable-static --disable-autodetect \
-            --enable-libdrm --enable-pthreads --disable-doc --disable-debug \
+            --enable-libdrm --enable-v4l2-m2m --enable-pthreads --disable-doc --disable-debug \
             --disable-ffplay --disable-ffprobe --disable-v4l2-request --disable-sand
+          for codec in H264 HEVC VP9; do
+            grep -q "#define CONFIG_${codec}_V4L2M2M_DECODER 1" config_components.h
+          done
           make -j"$(nproc)"
           make install
       - name: Verify decoder DRM PRIME capabilities
