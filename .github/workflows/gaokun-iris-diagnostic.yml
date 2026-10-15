@@ -44,7 +44,9 @@ jobs:
           mkdir artifact
           cp iris/qcom-iris.ko artifact/
           modinfo artifact/qcom-iris.ko > artifact/modinfo.txt
-          modprobe --show-modversions artifact/qcom-iris.ko > artifact/modversions.txt
+          cp "$kdir/.config" artifact/kernel.config
+          cp "$kdir/Module.symvers" artifact/kernel-Module.symvers
+          nm -u artifact/qcom-iris.ko > artifact/imported-symbols.txt
           test "$(modinfo -F vermagic artifact/qcom-iris.ko | cut -d' ' -f1)" = "$KERNEL_RELEASE"
           modinfo -F alias artifact/qcom-iris.ko | grep -Fx 'of:N*T*Cqcom,sc8280xp-venus'
           printf '%s\n' "$GITHUB_SHA" > artifact/source-commit.txt
