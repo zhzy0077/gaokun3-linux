@@ -211,3 +211,42 @@
  		flags |= V4L2_BUF_FLAG_ERROR;
  
  	buf->flags |= flags;
+--- a/drivers/media/platform/qcom/iris/iris_core.c
++++ b/drivers/media/platform/qcom/iris/iris_core.c
+@@ -4,6 +4,8 @@
+  */
+ 
+ #include <linux/pm_runtime.h>
++
++#include <linux/interrupt.h>
+ 
+ #include "iris_core.h"
+ #include "iris_firmware.h"
+@@ -16,6 +18,8 @@
+ 
+ 	ret = pm_runtime_resume_and_get(core->dev);
+ 
++	/* The threaded handler takes core->lock; quiesce it before teardown. */
++	disable_irq(core->irq);
+ 	mutex_lock(&core->lock);
+ 	if (core->state != IRIS_CORE_DEINIT) {
+ 		iris_fw_unload(core);
+@@ -27,6 +31,8 @@
+ 		core->state = IRIS_CORE_DEINIT;
+ 	}
+ 	mutex_unlock(&core->lock);
++	/* Balance this temporary gate; power-off owns its own IRQ disable. */
++	enable_irq(core->irq);
+ 
+ 	if (!ret)
+ 		pm_runtime_put_sync(core->dev);
+--- a/drivers/media/platform/qcom/iris/iris_probe.c
++++ b/drivers/media/platform/qcom/iris/iris_probe.c
+@@ -200,6 +200,7 @@
+ 	if (!core)
+ 		return;
+ 
++	cancel_delayed_work_sync(&core->sys_error_handler);
+ 	iris_core_deinit(core);
+ 
+ 	video_unregister_device(core->vdev_dec);
