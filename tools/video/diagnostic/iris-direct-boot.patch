@@ -198,6 +198,14 @@
  }
  
  int iris_process_streamon_input(struct iris_inst *inst)
+@@ -151,6 +151,7 @@
+ 		return ret;
+ 
+ 	inst->last_buffer_dequeued = false;
++	v4l2_m2m_clear_state(inst->m2m_ctx);
+ 
+ 	return iris_inst_change_sub_state(inst, clear_sub_state, 0);
+ }
 --- a/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
 +++ b/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
 @@ -424,6 +424,10 @@
@@ -335,3 +343,17 @@
  	if (ret)
  		return ret;
  
+@@ -526,7 +517,12 @@
+ 		return -EBUSY;
+ 	}
+ 
+-	return iris_inst_change_sub_state(inst, clear_sub_state, 0);
++	ret = iris_inst_change_sub_state(inst, clear_sub_state, 0);
++	if (!ret) {
++		inst->last_buffer_dequeued = false;
++		v4l2_m2m_clear_state(inst->m2m_ctx);
++	}
++	return ret;
+ }
+ 
+ int iris_vdec_stop_cmd(struct iris_inst *inst)
