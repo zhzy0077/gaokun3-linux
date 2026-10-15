@@ -46,8 +46,9 @@ test boot. Perform these checks on the device after boot:
 3. Decode H.264, HEVC and VP9 samples with the explicitly selected FFmpeg
    `*_v4l2m2m` decoder for every advertised codec. Compare the decoded frames
    with software decoding, then test repeated opens and sustained playback.
-   The installed Fedora `ffmpeg-free` lacks H.264/HEVC V4L2 decoder wrappers;
-   use a separate FFmpeg build containing those wrappers for these tests.
+   Check `ffmpeg -decoders` for these wrappers: Fedora's `ffmpeg-free` omits
+   some of them. RPM Fusion's full `ffmpeg-libs` or a separate full FFmpeg
+   build can supply them.
 4. Repeat playback after suspend/resume, checking kernel logs for new faults.
 5. With Firefox hardware decoding enabled, run `gfxtest v4l2 -d DEVICE`, then
    play a local sample in an isolated Firefox profile. Capture decoder-selection
