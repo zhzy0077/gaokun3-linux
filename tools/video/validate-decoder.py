@@ -77,7 +77,7 @@ def main():
             result['matching_hardware_decodes'] = 5
             if args.drm_prime:
                 label = codec + '-drm-prime'
-                run(label, ff + ['-hwaccel', 'drm', '-hwaccel_output_format', 'drm_prime',
+                run(label, ff + ['-no_cvt_hw',
                     '-c:v', codec + '_v4l2m2m', '-i', str(sample), '-an',
                     '-c:v', 'wrapped_avframe', '-f', 'null', '-'])
                 if 'drm_prime' not in (work / (label + '.log')).read_text():

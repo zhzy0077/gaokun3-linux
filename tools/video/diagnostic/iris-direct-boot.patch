@@ -200,24 +200,14 @@
  int iris_process_streamon_input(struct iris_inst *inst)
 --- a/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
 +++ b/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
-@@ -424,6 +424,10 @@
- 		offset = com_pkt->offset;
- 	}
+@@ -519,7 +519,9 @@
+ 	if (hfi_flags & HFI_BUFFERFLAG_DATACORRUPT)
+ 		flags |= V4L2_BUF_FLAG_ERROR;
  
-+	if (!filled_len || (hfi_flags & (HFI_BUFFERFLAG_EOS | HFI_BUFFERFLAG_DATACORRUPT)))
-+		dev_info(core->dev, "ftb diagnostic: codec=%u stream=%u tag=%u flags=%#x len=%u offset=%u state=%u substate=%u\n",
-+			 inst->codec, uncom_pkt->stream_id, output_tag, hfi_flags, filled_len, offset, inst->state, inst->sub_state);
-+
- 	if ((hfi_flags & HFI_BUFFERFLAG_EOS) && !filled_len) {
- 		reinit_completion(&inst->flush_completion);
+-	if (hfi_flags & HFI_BUFFERFLAG_DROP_FRAME)
++	/* An empty EOS buffer terminates drain; it does not contain a frame. */
++	if ((hfi_flags & HFI_BUFFERFLAG_DROP_FRAME) &&
++	    !((hfi_flags & HFI_BUFFERFLAG_EOS) && !filled_len))
+ 		flags |= V4L2_BUF_FLAG_ERROR;
  
-@@ -530,7 +534,8 @@
- 
- error:
- 	iris_inst_change_state(inst, IRIS_INST_ERROR);
--	dev_err(core->dev, "error in ftb done\n");
-+	dev_err(core->dev, "error in ftb done: stream=%u tag=%u flags=%#x len=%u offset=%u\n",
-+		uncom_pkt->stream_id, output_tag, hfi_flags, filled_len, offset);
- }
- 
- struct iris_hfi_gen1_response_pkt_info {
+ 	buf->flags |= flags;
