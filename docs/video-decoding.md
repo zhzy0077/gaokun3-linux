@@ -88,3 +88,18 @@ that report even when the decode checks pass. Repeat into a separate results
 directory after suspend/resume. Firefox playback remains an additional check.
 With the isolated DRM PRIME libraries, add `--drm-prime` to check hardware-frame
 output as well as the pixel comparisons.
+
+For Firefox, use a fresh results directory:
+
+```sh
+python3 tools/video/validate-firefox.py --samples /path/to/playback-results \
+  --results /path/to/firefox-results --library-dir /path/to/ffmpeg-stage/lib
+```
+
+This opens temporary Firefox profiles for H.264 and VP9, plays the local
+samples, records browser frame counters, and requires actual V4L2 output-frame
+logs. It leaves the regular Firefox profile untouched. `--codecs hevc` can
+test HEVC separately when the browser exposes that codec.
+
+The pre-boot baseline on `7.2.9-gaokun3-el2+` played all 90 H.264 frames but
+logged zero V4L2 output frames, correctly failing the hardware-playback check.
