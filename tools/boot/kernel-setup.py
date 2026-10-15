@@ -148,6 +148,11 @@ def install(kernel, devicetree):
         print('Gaokun: target filesystems not mounted; image builder must finalize boot later.')
         return
     cmdline = target_cmdline()
+    # Direct VPU2 firmware loading is validated for the EL2 variant.
+    # Preserve an explicit administrator override.
+    if el2 and not any(arg.split('=', 1)[0].replace('-', '_') ==
+                       'qcom_iris.firmware_direct' for arg in shlex.split(cmdline)):
+        cmdline = cmdline.rstrip() + ' qcom_iris.firmware_direct=1\n'
     token = entry_identity()
     image = ROOT / 'boot' / ('vmlinuz-' + kernel)
     initrd = ROOT / 'boot' / ('initramfs-' + kernel + '.img')

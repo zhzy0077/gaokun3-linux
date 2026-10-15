@@ -3,7 +3,7 @@
 
 Name:           @PKG_NAME@
 Version:        @KREL_VERSION@
-Release:        13%{?dist}
+Release:        14%{?dist}
 Summary:        Kernel modules for the gaokun3 kernel
 License:        GPL-2.0-only
 ExclusiveArch:  aarch64
@@ -33,6 +33,9 @@ cp -a usr %{buildroot}/
 /usr/lib/modules/@KREL@
 
 %changelog
+* Thu Oct 15 2026 Gaokun buildbot - @KREL_VERSION@-14
+- Integrate SC8280XP Iris hardware decoding fixes
+
 * Wed Oct 14 2026 Gaokun buildbot - @KREL_VERSION@-13
 - Wait for transiently unavailable SMP2P state before no-reset EL2 attachment
 - Retain attach-error diagnostics and calibrate Gaokun3 speaker playback gain

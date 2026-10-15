@@ -79,6 +79,9 @@ class BootSetupTests(unittest.TestCase):
             (root/'boot'/('vmlinuz-'+KERNEL)).write_bytes(b'kernel')
             dtb=root/'usr/lib/modules'/KERNEL/'dtb'/DTB;dtb.parent.mkdir(parents=True);dtb.write_bytes(b'dtb')
             def command(args,**kwargs):
+                if args[0]=='kernel-install':
+                    cmdline=(Path(kwargs['env']['KERNEL_INSTALL_CONF_ROOT'])/'cmdline').read_text()
+                    self.assertIn('qcom_iris.firmware_direct=1',cmdline)
                 if args[0]=='dracut':Path(args[-1]).write_bytes(b'initrd')
                 return subprocess.CompletedProcess(args,0)
             with patch.object(boot,'ROOT',root), patch.object(boot,'ESP',esp), \

@@ -1,0 +1,63 @@
+name: Build Iris PAS diagnostic module
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [iris-sc8280xp]
+    paths:
+      - .github/workflows/gaokun-iris-diagnostic.yml
+      - tools/video/diagnostic/**
+
+permissions:
+  contents: read
+
+jobs:
+  iris:
+    runs-on: ubuntu-24.04-arm
+    env:
+      KERNEL_RELEASE: 7.2.9-iris1-gaokun3-el2+
+      PACKAGE_TAG: gaokun3-rpms-v7.2.9-std-el2-iris1-20261015033428
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential rpm2cpio cpio kmod libelf-dev libssl-dev dwarves zstd
+      - name: Extract matching CI kernel development package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          gh release download "$PACKAGE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "kernel-devel-gaokun3-el2-*.rpm" --dir download
+          mkdir devel
+          cd devel
+          rpm2cpio ../download/*.rpm | cpio -idm --quiet
+      - name: Build diagnostic module against exact kernel ABI
+        run: |
+          set -euxo pipefail
+          kdir="$GITHUB_WORKSPACE/devel/usr/src/kernels/$KERNEL_RELEASE"
+          test "$(cat "$kdir/include/config/kernel.release")" = "$KERNEL_RELEASE"
+          patch --directory="$kdir" -p1 --fuzz=0 < tools/video/diagnostic/iris-direct-boot.patch
+          cp -a "$kdir/drivers/media/platform/qcom/iris" iris
+          make -C "$kdir" ARCH=arm64 M="$GITHUB_WORKSPACE/iris" -j"$(nproc)" modules
+          make -C "$kdir" ARCH=arm64 M="$GITHUB_WORKSPACE/tools/video/diagnostic/overlay" modules
+          mkdir artifact
+          cp iris/qcom-iris.ko artifact/
+          cp tools/video/diagnostic/overlay/iris-fw-overlay.ko artifact/
+          modinfo artifact/qcom-iris.ko > artifact/modinfo.txt
+          cp "$kdir/.config" artifact/kernel.config
+          cp "$kdir/Module.symvers" artifact/kernel-Module.symvers
+          nm -u artifact/qcom-iris.ko > artifact/imported-symbols.txt
+          test "$(modinfo -F vermagic artifact/qcom-iris.ko | cut -d' ' -f1)" = "$KERNEL_RELEASE"
+          modinfo -F alias artifact/qcom-iris.ko | grep -Fx 'of:N*T*Cqcom,sc8280xp-venus'
+          printf '%s\n' "$GITHUB_SHA" > artifact/source-commit.txt
+          printf '%s\n' "$PACKAGE_TAG" > artifact/base-release.txt
+          cp tools/video/diagnostic/iris-direct-boot.patch artifact/
+          cd artifact
+          sha256sum qcom-iris.ko > qcom-iris.ko.sha256
+          sha256sum iris-fw-overlay.ko > iris-fw-overlay.ko.sha256
+      - uses: actions/upload-artifact@v6
+        with:
+          name: iris-pas-diagnostic
+          path: artifact/

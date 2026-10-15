@@ -1,0 +1,332 @@
+From 224daaf25169985ce0b295810d56aa4eab2747c5 Mon Sep 17 00:00:00 2001
+From: Zhiyuan Zheng <zhizhen@microsoft.com>
+Date: Thu, 15 Oct 2026 13:43:57 +0800
+Subject: [PATCH] media: iris: support Gaokun EL2 firmware boot and decoder
+ restart
+
+Opt in with qcom_iris.firmware_direct=1 on the Gaokun EL2 boot entry. Map firmware through its own IOMMU device using the validated Venus VPU2 reset sequence.
+
+Fix timestamp-ring wrap, empty VP9 EOS, teardown IRQ locking, scratch registration replacement, and stopped-state reset. Runtime validated with H.264, HEVC and VP9 checksum comparisons, repeated playback and Firefox DRM PRIME import.
+---
+
+diff --git a/drivers/media/platform/qcom/iris/iris_common.c b/drivers/media/platform/qcom/iris/iris_common.c
+index 2583656..b6c1112 100644
+--- a/drivers/media/platform/qcom/iris/iris_common.c
++++ b/drivers/media/platform/qcom/iris/iris_common.c
+@@ -43,7 +43,7 @@ void iris_set_ts_metadata(struct iris_inst *inst, struct vb2_v4l2_buffer *vbuf)
+ 	inst->tss[inst->metadata_idx].ts_us = ts_us;
+ 	inst->tss[inst->metadata_idx].ts_ns = vb->timestamp;
+ 
+-	inst->metadata_idx++;
++	inst->metadata_idx = (inst->metadata_idx + 1) % ARRAY_SIZE(inst->tss);
+ }
+ 
+ int iris_process_streamon_input(struct iris_inst *inst)
+@@ -151,6 +151,7 @@ int iris_process_streamon_output(struct iris_inst *inst)
+ 		return ret;
+ 
+ 	inst->last_buffer_dequeued = false;
++	v4l2_m2m_clear_state(inst->m2m_ctx);
+ 
+ 	return iris_inst_change_sub_state(inst, clear_sub_state, 0);
+ }
+diff --git a/drivers/media/platform/qcom/iris/iris_core.c b/drivers/media/platform/qcom/iris/iris_core.c
+index 8c335db..ad066df 100644
+--- a/drivers/media/platform/qcom/iris/iris_core.c
++++ b/drivers/media/platform/qcom/iris/iris_core.c
+@@ -5,6 +5,8 @@
+ 
+ #include <linux/pm_runtime.h>
+ 
++#include <linux/interrupt.h>
++
+ #include "iris_core.h"
+ #include "iris_firmware.h"
+ #include "iris_state.h"
+@@ -16,6 +18,8 @@ void iris_core_deinit(struct iris_core *core)
+ 
+ 	ret = pm_runtime_resume_and_get(core->dev);
+ 
++	/* The threaded handler takes core->lock; quiesce it before teardown. */
++	disable_irq(core->irq);
+ 	mutex_lock(&core->lock);
+ 	if (core->state != IRIS_CORE_DEINIT) {
+ 		iris_fw_unload(core);
+@@ -27,6 +31,8 @@ void iris_core_deinit(struct iris_core *core)
+ 		core->state = IRIS_CORE_DEINIT;
+ 	}
+ 	mutex_unlock(&core->lock);
++	/* Balance this temporary gate; power-off owns its own IRQ disable. */
++	enable_irq(core->irq);
+ 
+ 	if (!ret)
+ 		pm_runtime_put_sync(core->dev);
+diff --git a/drivers/media/platform/qcom/iris/iris_core.h b/drivers/media/platform/qcom/iris/iris_core.h
+index 24da604..0759eee 100644
+--- a/drivers/media/platform/qcom/iris/iris_core.h
++++ b/drivers/media/platform/qcom/iris/iris_core.h
+@@ -120,6 +120,9 @@ struct iris_core {
+ 	u32					intr_status;
+ 	struct delayed_work			sys_error_handler;
+ 	struct list_head			instances;
++	struct device *direct_fw_dev;
++	struct iommu_domain *direct_fw_domain;
++	size_t direct_fw_size;
+ 	/* encoder and decoder have overlapping caps, so two different arrays are required */
+ 	struct platform_inst_fw_cap		inst_fw_caps_dec[INST_FW_CAP_MAX];
+ 	struct platform_inst_fw_cap		inst_fw_caps_enc[INST_FW_CAP_MAX];
+diff --git a/drivers/media/platform/qcom/iris/iris_firmware.c b/drivers/media/platform/qcom/iris/iris_firmware.c
+index 1a47614..700055e 100644
+--- a/drivers/media/platform/qcom/iris/iris_firmware.c
++++ b/drivers/media/platform/qcom/iris/iris_firmware.c
+@@ -4,6 +4,11 @@
+  */
+ 
+ #include <linux/firmware.h>
++#include <linux/iommu.h>
++#include <linux/moduleparam.h>
++#include <linux/of_device.h>
++#include <linux/platform_device.h>
++#include <linux/sizes.h>
+ #include <linux/firmware/qcom/qcom_scm.h>
+ #include <linux/of_address.h>
+ #include <linux/of_reserved_mem.h>
+@@ -16,6 +21,133 @@
+ 
+ #define MAX_FIRMWARE_NAME_SIZE	128
+ 
++static bool firmware_direct;
++module_param(firmware_direct, bool, 0444);
++MODULE_PARM_DESC(firmware_direct, "Gaokun EL2 VPU2 direct firmware boot (requires firmware DT child)");
++
++/* VPU2 direct boot follows drivers/media/platform/qcom/venus/firmware.c. */
++#define IRIS_DIRECT_TZ_BASE 0xc0000
++#define IRIS_DIRECT_RESET 0x1000
++
++static void iris_direct_reset(struct iris_core *core, bool assert)
++{
++	void __iomem *base = core->reg_base + IRIS_DIRECT_TZ_BASE;
++	u32 size = core->direct_fw_size;
++
++	if (assert) {
++		writel(BIT(0), base + IRIS_DIRECT_RESET);
++		return;
++	}
++	writel(0, base + 0x1028); /* firmware start */
++	writel(size, base + 0x102c); /* firmware end */
++	writel(0, base + 0x1020); /* CPA start */
++	writel(size, base + 0x1024); /* CPA end */
++	writel(size, base + 0x1030); /* nonpixel start */
++	writel(size, base + 0x1034); /* nonpixel end */
++	writel(0, base + IRIS_DIRECT_RESET);
++}
++
++static void iris_direct_cleanup(struct iris_core *core)
++{
++	if (!core->direct_fw_dev)
++		return;
++	if (core->direct_fw_size) {
++		iris_direct_reset(core, true);
++		iommu_unmap(core->direct_fw_domain, 0, core->direct_fw_size);
++		core->direct_fw_size = 0;
++	}
++	if (core->direct_fw_domain) {
++		iommu_detach_device(core->direct_fw_domain, core->direct_fw_dev);
++		iommu_domain_free(core->direct_fw_domain);
++		core->direct_fw_domain = NULL;
++	}
++	platform_device_unregister(to_platform_device(core->direct_fw_dev));
++	core->direct_fw_dev = NULL;
++}
++
++static int iris_direct_load(struct iris_core *core, const char *fwname)
++{
++	struct platform_device_info info = { 0 };
++	const struct firmware *fw;
++	struct platform_device *pdev;
++	struct iommu_domain *domain;
++	struct device_node *np;
++	struct resource res;
++	void *mem;
++	ssize_t size;
++	int ret;
++
++	if (!of_machine_is_compatible("huawei,gaokun3") ||
++	    !of_device_is_compatible(core->dev->of_node, "qcom,sc8280xp-venus"))
++		return -EINVAL;
++	np = of_get_child_by_name(core->dev->of_node, "video-firmware");
++	if (!np)
++		return -ENODEV;
++	ret = of_reserved_mem_region_to_resource(core->dev->of_node, 0, &res);
++	if (ret)
++		goto put_node;
++	info.fwnode = &np->fwnode;
++	info.parent = core->dev;
++	info.name = "iris-direct-firmware";
++	info.dma_mask = DMA_BIT_MASK(32);
++	pdev = platform_device_register_full(&info);
++	if (IS_ERR(pdev)) {
++		ret = PTR_ERR(pdev);
++		goto put_node;
++	}
++	core->direct_fw_dev = &pdev->dev;
++	pdev->dev.of_node = np;
++	ret = of_dma_configure(&pdev->dev, np, true);
++	if (ret)
++		goto cleanup;
++	domain = iommu_paging_domain_alloc(&pdev->dev);
++	if (IS_ERR(domain)) {
++		ret = PTR_ERR(domain);
++		goto cleanup;
++	}
++	ret = iommu_attach_device(domain, &pdev->dev);
++	if (ret) {
++		iommu_domain_free(domain);
++		goto cleanup;
++	}
++	core->direct_fw_domain = domain;
++	ret = request_firmware(&fw, fwname, core->dev);
++	if (ret)
++		goto cleanup;
++	size = qcom_mdt_get_size(fw);
++	if (size <= 0 || size > resource_size(&res) || resource_size(&res) > (6 * SZ_1M)) {
++		ret = -EINVAL;
++		goto release_fw;
++	}
++	iris_direct_reset(core, true);
++	mem = memremap(res.start, resource_size(&res), MEMREMAP_WC);
++	if (!mem) {
++		ret = -ENOMEM;
++		goto release_fw;
++	}
++	ret = qcom_mdt_load_no_init(core->dev, fw, fwname, mem,
++				    res.start, resource_size(&res), NULL);
++	memunmap(mem);
++	if (ret)
++		goto release_fw;
++	ret = iommu_map(domain, 0, res.start, resource_size(&res),
++			IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV, GFP_KERNEL);
++	if (ret)
++		goto release_fw;
++	core->direct_fw_size = resource_size(&res);
++	iris_direct_reset(core, false);
++	dev_info(core->dev, "direct VPU2 boot: %pa, %zu bytes mapped at IOVA 0\n",
++		 &res.start, core->direct_fw_size);
++release_fw:
++	release_firmware(fw);
++cleanup:
++	if (ret)
++		iris_direct_cleanup(core);
++put_node:
++	of_node_put(np);
++	return ret;
++}
++
+ static int iris_load_fw_to_memory(struct iris_core *core, const char *fw_name)
+ {
+ 	const struct firmware *firmware = NULL;
+@@ -74,6 +206,9 @@ int iris_fw_load(struct iris_core *core)
+ 	if (ret)
+ 		fwpath = core->iris_firmware_desc->fwname;
+ 
++	if (firmware_direct)
++		return iris_direct_load(core, fwpath);
++
+ 	ret = iris_load_fw_to_memory(core, fwpath);
+ 	if (ret) {
+ 		dev_err(core->dev, "firmware download failed\n");
+@@ -104,10 +239,18 @@ int iris_fw_load(struct iris_core *core)
+ 
+ int iris_fw_unload(struct iris_core *core)
+ {
++	if (firmware_direct) {
++		iris_direct_cleanup(core);
++		return 0;
++	}
+ 	return qcom_scm_pas_shutdown(IRIS_PAS_ID);
+ }
+ 
+ int iris_set_hw_state(struct iris_core *core, bool resume)
+ {
++	if (firmware_direct) {
++		iris_direct_reset(core, !resume);
++		return 0;
++	}
+ 	return qcom_scm_set_remote_state(resume, 0);
+ }
+diff --git a/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c b/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
+index bfd7495..f15b35b 100644
+--- a/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
++++ b/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
+@@ -424,6 +424,7 @@ static void iris_hfi_gen1_session_ftb_done(struct iris_inst *inst, void *packet)
+ 		offset = com_pkt->offset;
+ 	}
+ 
++
+ 	if ((hfi_flags & HFI_BUFFERFLAG_EOS) && !filled_len) {
+ 		reinit_completion(&inst->flush_completion);
+ 
+@@ -519,7 +520,9 @@ static void iris_hfi_gen1_session_ftb_done(struct iris_inst *inst, void *packet)
+ 	if (hfi_flags & HFI_BUFFERFLAG_DATACORRUPT)
+ 		flags |= V4L2_BUF_FLAG_ERROR;
+ 
+-	if (hfi_flags & HFI_BUFFERFLAG_DROP_FRAME)
++	/* An empty EOS buffer terminates drain; it does not contain a frame. */
++	if ((hfi_flags & HFI_BUFFERFLAG_DROP_FRAME) &&
++	    !((hfi_flags & HFI_BUFFERFLAG_EOS) && !filled_len))
+ 		flags |= V4L2_BUF_FLAG_ERROR;
+ 
+ 	buf->flags |= flags;
+diff --git a/drivers/media/platform/qcom/iris/iris_probe.c b/drivers/media/platform/qcom/iris/iris_probe.c
+index c2dcb50..1f53068 100644
+--- a/drivers/media/platform/qcom/iris/iris_probe.c
++++ b/drivers/media/platform/qcom/iris/iris_probe.c
+@@ -200,6 +200,7 @@ static void iris_remove(struct platform_device *pdev)
+ 	if (!core)
+ 		return;
+ 
++	cancel_delayed_work_sync(&core->sys_error_handler);
+ 	iris_core_deinit(core);
+ 
+ 	video_unregister_device(core->vdev_dec);
+diff --git a/drivers/media/platform/qcom/iris/iris_vdec.c b/drivers/media/platform/qcom/iris/iris_vdec.c
+index 9e228b7..bff3169 100644
+--- a/drivers/media/platform/qcom/iris/iris_vdec.c
++++ b/drivers/media/platform/qcom/iris/iris_vdec.c
+@@ -370,17 +370,8 @@ int iris_vdec_streamon_input(struct iris_inst *inst)
+ 	if (ret)
+ 		return ret;
+ 
+-	iris_get_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+-
+-	ret = iris_destroy_dequeued_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+-	if (ret)
+-		return ret;
+-
+-	ret = iris_create_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+-	if (ret)
+-		return ret;
+-
+-	ret = iris_queue_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
++	/* Release retained scratch registrations before replacing them. */
++	ret = iris_alloc_and_queue_input_int_bufs(inst);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -526,7 +517,12 @@ int iris_vdec_start_cmd(struct iris_inst *inst)
+ 		return -EBUSY;
+ 	}
+ 
+-	return iris_inst_change_sub_state(inst, clear_sub_state, 0);
++	ret = iris_inst_change_sub_state(inst, clear_sub_state, 0);
++	if (!ret) {
++		inst->last_buffer_dequeued = false;
++		v4l2_m2m_clear_state(inst->m2m_ctx);
++	}
++	return ret;
+ }
+ 
+ int iris_vdec_stop_cmd(struct iris_inst *inst)
+-- 
+2.56.0
+

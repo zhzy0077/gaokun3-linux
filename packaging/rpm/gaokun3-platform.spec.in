@@ -5,7 +5,7 @@
 
 Name:           gaokun3-platform
 Version:        @PLATFORM_VERSION@
-Release:        6%{?dist}
+Release:        7%{?dist}
 Summary:        Hardware configuration and desktop tools for Huawei Gaokun3
 # The existing tool sources do not declare a common SPDX license.
 License:        LicenseRef-Unknown
@@ -28,7 +28,7 @@ Requires:       wireplumber
 Requires:       util-linux
 Requires:       systemd-udev
 Requires:       dracut
-Provides:       gaokun3-boot-integration = 1
+Provides:       gaokun3-boot-integration = 2
 %{?systemd_requires}
 
 %description
@@ -157,6 +157,9 @@ done
 %config(noreplace) %{_sysconfdir}/skel/.config/monitors.xml
 
 %changelog
+* Thu Oct 15 2026 Gaokun buildbot - @PLATFORM_VERSION@-7
+- Integrate SC8280XP hardware decoding and EL2 firmware boot support
+
 * Sun Oct 11 2026 Gaokun buildbot - @PLATFORM_VERSION@-6
 - Set internal microphone UCM gain to +22 dB (+6 dB over upstream)
 

@@ -125,6 +125,32 @@ int main(void) {
         self.assertIn('dpu_crtc_init(dev, primary_planes[i], cursor_planes[i])', objects)
         self.assertIn('encoder->possible_crtcs = (1 << dev->mode_config.num_crtc) - 1;', objects)
 
+    def test_sc8280xp_codec_resources_match_iris(self):
+        """Catch the missing match and resource-name failures of the old series."""
+        iris = self.tree / 'drivers/media/platform/qcom/iris'
+        probe = (iris / 'iris_probe.c').read_text()
+        self.assertRegex(probe, r'"qcom,sc8280xp-venus",\s*\.data = &sc8280xp_data')
+        platform = (iris / 'iris_platform_vpu2.c').read_text()
+        data = re.search(r'const struct iris_platform_data sc8280xp_data = \{(.*?)\n};',
+                         platform, re.S).group(1)
+        self.assertIn('.num_vpp_pipe = 4', data)
+        soc = (self.tree / 'arch/arm64/boot/dts/qcom/sc8280xp.dtsi').read_text()
+        codec = soc.split('venus: video-codec@aa00000 {', 1)[1].split('venus_opp_table:', 1)[0]
+        for field, prop in (('clk_rst_tbl', 'reset-names'), ('opp_pd_tbl', 'power-domain-names')):
+            table = re.search(r'\.' + field + r' = (\w+),', data).group(1)
+            names = re.findall(r'"([^"]+)"', re.search(
+                re.escape(table) + r'\[\] = \{(.*?)\};', platform, re.S).group(1))
+            dt_names = re.findall(r'"([^"]+)"', re.search(
+                prop + r' = (.*?);', codec, re.S).group(1))
+            self.assertTrue(set(names) <= set(dt_names), (field, names, dt_names))
+        self.assertNotIn('venus-decoder', codec)
+        self.assertNotIn('venus-encoder', codec)
+        board = (ROOT / 'dts/sc8280xp-huawei-gaokun3.dts').read_text()
+        override = re.search(r'&venus \{(.*?)\};', board, re.S).group(1)
+        self.assertIn('status = "okay";', override)
+        fw = re.search(r'firmware-name = "([^"]+)";', override).group(1)
+        self.assertTrue((ROOT / 'firmware' / fw).is_file())
+
     def test_complete_standard_and_el2_series(self):
         for name in ('sc8280xp-huawei-gaokun3.dts', 'sc8280xp-huawei-gaokun3-camera.dtsi'):
             self.assertEqual((self.tree / 'arch/arm64/boot/dts/qcom' / name).read_bytes(),
