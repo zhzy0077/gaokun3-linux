@@ -20,6 +20,8 @@ def main():
     parser.add_argument('--ffmpeg', required=True)
     parser.add_argument('--work-dir', type=Path, required=True)
     parser.add_argument('--prepare-only', action='store_true')
+    parser.add_argument('--drm-prime', action='store_true',
+                        help='Also require DRM PRIME output from a patched FFmpeg build')
     parser.add_argument('--codecs', nargs='+', choices=CODECS, default=list(CODECS))
     parser.add_argument('--sustain-seconds', type=int, default=60)
     args = parser.parse_args()
@@ -73,6 +75,14 @@ def main():
                 if actual != reference:
                     raise RuntimeError(f'{codec} hardware/software frame checksum mismatch')
             result['matching_hardware_decodes'] = 5
+            if args.drm_prime:
+                label = codec + '-drm-prime'
+                run(label, ff + ['-hwaccel', 'drm', '-hwaccel_output_format', 'drm_prime',
+                    '-c:v', codec + '_v4l2m2m', '-i', str(sample), '-an',
+                    '-c:v', 'wrapped_avframe', '-f', 'null', '-'])
+                if 'drm_prime' not in (work / (label + '.log')).read_text():
+                    raise RuntimeError(f'{codec} did not report DRM PRIME output')
+                result['drm_prime_output'] = True
             start = time.monotonic()
             run(codec + '-sustained', ff + ['-stream_loop', '-1', '-re',
                 '-c:v', codec + '_v4l2m2m', '-i', str(sample), '-t', str(args.sustain_seconds),

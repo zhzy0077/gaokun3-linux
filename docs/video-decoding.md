@@ -58,6 +58,17 @@ VA-API may still report no `msm_drv_video.so`; this integration uses V4L2 M2M.
 Firefox's sequential scanning of the CAMSS capture nodes is a separate startup
 issue and remains to be fixed in Firefox.
 
+Firefox's V4L2 path additionally requires DRM PRIME frame export. The stock
+FFmpeg 8.1.3 libraries inspected on this device expose V4L2 decoder wrappers
+but no DRM PRIME hardware configuration for them. This is the problem tracked
+in [Mozilla bug 1852765](https://bugzilla.mozilla.org/show_bug.cgi?id=1852765).
+The `gaokun-video-userspace.yml` workflow builds isolated shared libraries from
+`jc-kynesim/rpi-ffmpeg`, pinned to commit
+`f60aae17021abae85b1ba9759e8b2da33f723902` (the `test/8.1.2/main` branch).
+It checks the public libavcodec capability API before uploading the bundle.
+Use its `lib` directory through `LD_LIBRARY_PATH` for the isolated test process;
+system libraries remain managed by the distribution packages.
+
 ## Playback checker
 
 Use a FFmpeg executable that lists `h264_v4l2m2m`, `hevc_v4l2m2m`, and
@@ -75,3 +86,5 @@ and a JSON result. `--codecs h264` restricts the first bring-up attempt.
 Compliance failures are recorded separately from playback results; inspect
 that report even when the decode checks pass. Repeat into a separate results
 directory after suspend/resume. Firefox playback remains an additional check.
+With the isolated DRM PRIME libraries, add `--drm-prime` to check hardware-frame
+output as well as the pixel comparisons.
