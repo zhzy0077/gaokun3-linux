@@ -45,8 +45,8 @@ jobs:
           for codec in h264 hevc vp9; do
             ffmpeg-stage/bin/ffmpeg -hide_banner -h "decoder=${codec}_v4l2m2m" \
               > "ffmpeg-stage/${codec}-capabilities.txt" 2>&1
-            grep -q drm "ffmpeg-stage/${codec}-capabilities.txt"
           done
+          python3 tools/video/check-ffmpeg-drm.py > ffmpeg-stage/drm-capabilities.json
           printf '%s\n' "$FFMPEG_REF" > ffmpeg-stage/source-commit.txt
           cp ffmpeg-source/ffbuild/config.log ffmpeg-stage/config.log
           cp ffmpeg-source/COPYING.LGPLv2.1 ffmpeg-stage/
