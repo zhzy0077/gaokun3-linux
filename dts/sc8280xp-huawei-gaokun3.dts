@@ -1412,7 +1412,11 @@
 
 &venus {
 	firmware-name = "qcom/sc8280xp/HUAWEI/gaokun3/qcvss8280.mbn";
+
 	status = "okay";
+	video-firmware {
+		iommus = <&apps_smmu 0x2e02 0x400>;
+	};
 };
 
 &vamacro {

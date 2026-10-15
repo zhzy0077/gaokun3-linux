@@ -27,6 +27,12 @@ def check(out, dtb_name, repo):
     for key, value in expected.items():
         if actual[key] != value:
             raise ValueError(f'{dtb_name}: {key}: {actual[key]!r} != {value!r}')
+    fw_iommu = output('fdtget', '-t', 'x', dtb, node + '/video-firmware', 'iommus').split()
+    apps_smmu = output('fdtget', '-t', 'x', dtb, '/soc@0/iommu@15000000', 'phandle')
+    if fw_iommu != [apps_smmu, '2e02', '400']:
+        raise ValueError(f'Incorrect firmware IOMMU mapping: {fw_iommu}')
+    if 'firmware_direct:bool' not in output('modinfo', '-F', 'parmtype', module).splitlines():
+        raise ValueError('Iris module lacks the direct firmware boot option')
     aliases = output('modinfo', '-F', 'alias', module).splitlines()
     if 'of:N*T*Cqcom,sc8280xp-venus' not in aliases:
         raise ValueError('Built Iris module cannot bind the SC8280XP DT node')
@@ -41,6 +47,7 @@ def check(out, dtb_name, repo):
     if output('modinfo', '-F', 'vermagic', module).split()[0] != release:
         raise ValueError('Iris module vermagic does not match the built kernel')
     return {'kernel_release': release, 'dtb': dtb_name, 'codec': actual,
+            'firmware_iommu': fw_iommu,
             'iris_aliases': aliases, 'firmware_bytes': firmware.stat().st_size}
 
 

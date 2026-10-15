@@ -207,3 +207,13 @@ START. All three codecs pass five fresh hash comparisons, DRM PRIME export and
 450-frame loops without the previous EOS-event timeout warnings. This is the
 current temporary module. Firefox repeated playback also passes: 270 hardware
 frames imported per codec. Suspend/resume is the next required device check.
+
+## Persistent integration
+
+Suspend/resume testing was skipped at the user's request. The `-iris2` kernel
+build includes the validated direct loader and restart fixes in the normal
+media patch series, plus the firmware IOMMU child in the board DTS. The loader
+is enabled explicitly with `qcom_iris.firmware_direct=1` on the EL2 test entry.
+CI checks its module parameter and the child's SMMU phandle, stream and mask.
+Firefox VP9 currently uses the isolated browser and FFmpeg bundle; installed
+Firefox decoder ordering and startup probing remain separate work.
