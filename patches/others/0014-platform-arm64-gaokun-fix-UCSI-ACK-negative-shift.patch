@@ -1,0 +1,44 @@
+From: zhzy0077 <zhzy0077@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 22:30:00 +0800
+Subject: [PATCH] platform/arm64: huawei-gaokun-ec: validate UCSI ACK port
+
+GAOKUN_UCSI_NO_PORT_UPDATE is -1. Computing the ACK mask before checking
+this sentinel executes a negative shift, even though the mask is then
+replaced by zero. An idle sideband ACK triggered the following on Gaokun3:
+
+  UBSAN: shift-out-of-bounds in huawei-gaokun-ec.c
+  shift exponent -1 is negative
+  gaokun_ec_ucsi_pan_ack
+  gaokun_ucsi_sync_worker
+
+Initialize the empty ACK to zero and only shift after validating the port
+fits the one-byte ACK field. Reject other invalid values without EC I/O.
+Keep transport errors and the no-update ACK behavior unchanged.
+
+Signed-off-by: zhzy0077 <zhzy0077@users.noreply.github.com>
+---
+ drivers/platform/arm64/huawei-gaokun-ec.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/platform/arm64/huawei-gaokun-ec.c b/drivers/platform/arm64/huawei-gaokun-ec.c
+--- a/drivers/platform/arm64/huawei-gaokun-ec.c
++++ b/drivers/platform/arm64/huawei-gaokun-ec.c
+@@ -459,10 +459,13 @@ int gaokun_ec_ucsi_pan_ack(struct gaokun_ec *ec, int port_id)
+ {
+ 	u8 ec_req[] = MKREQ(0x03, UCSI_REG_WRITE, 1);
+-	u8 data = 1 << port_id;
++	u8 data = 0;
+ 
+-	if (port_id == GAOKUN_UCSI_NO_PORT_UPDATE)
+-		data = 0;
++	if (port_id != GAOKUN_UCSI_NO_PORT_UPDATE) {
++		if (port_id < 0 || port_id >= 8)
++			return -EINVAL;
++		data = 1U << port_id;
++	}
+ 
+ 	refill_req_byte(ec_req, &data);
+ 
+ 	return gaokun_ec_write(ec, ec_req);
+-- 
+2.56.0

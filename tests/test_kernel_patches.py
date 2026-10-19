@@ -125,6 +125,21 @@ int main(void) {
         self.assertIn('dpu_crtc_init(dev, primary_planes[i], cursor_planes[i])', objects)
         self.assertIn('encoder->possible_crtcs = (1 << dev->mode_config.num_crtc) - 1;', objects)
 
+    @unittest.skipUnless(shutil.which('cc'), 'native C compiler required')
+    def test_qmp_resource_ownership_and_opt_in_reconfiguration(self):
+        from test_qmp_common_power import exercise_qmp_resources
+        source = (self.tree / 'drivers/phy/qualcomm/phy-qcom-qmp-combo.c').read_text()
+        self.assertIn('static bool gaokun_keep_common_power;', source)
+        self.assertIn('module_param(gaokun_keep_common_power, bool, 0444)', source)
+        exercise_qmp_resources(source)
+
+    def test_ec_ack_encoder_matches_tested_mirror(self):
+        pattern = r'int gaokun_ec_ucsi_pan_ack\(.*?\n}'
+        patched = (self.tree / 'drivers/platform/arm64/huawei-gaokun-ec.c').read_text()
+        mirror = (ROOT / 'drivers/gaokun-ec/huawei-gaokun-ec.c').read_text()
+        self.assertEqual(re.search(pattern, patched, re.S).group(0),
+                         re.search(pattern, mirror, re.S).group(0))
+
     def test_plane_allocator_preserves_crtc_masks(self):
         source = (self.tree / 'drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c').read_text()
         common = re.search(r'static struct drm_plane \*dpu_plane_init_common\(.*?\n}',

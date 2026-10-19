@@ -1,0 +1,46 @@
+From 24a7fdc064c9d747dcea41e2c81e85d6762a468b Mon Sep 17 00:00:00 2001
+From: zhzy0077 <zhzy0077@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 22:49:58 +0800
+Subject: [PATCH] phy: qcom: qmp-combo: keep error cleanup with resource owners
+
+PIPE clock enable moved into common initialization, but USB PHY power-on still disables it on failure. Its caller then tears down the common resources and disables it a second time. Leave clock cleanup to the common owner. Likewise a forced common reinitialization does not acquire an init_count reference, so its failure must not drop one.
+---
+ drivers/phy/qualcomm/phy-qcom-qmp-combo.c | 13 ++++---------
+ 1 file changed, 4 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/phy/qualcomm/phy-qcom-qmp-combo.c b/drivers/phy/qualcomm/phy-qcom-qmp-combo.c
+index 5b278fd..30a7824 100644
+--- a/drivers/phy/qualcomm/phy-qcom-qmp-combo.c
++++ b/drivers/phy/qualcomm/phy-qcom-qmp-combo.c
+@@ -3732,7 +3732,8 @@ err_assert_reset:
+ err_disable_regulators:
+ 	regulator_bulk_disable(cfg->num_vregs, qmp->vregs);
+ err_decrement_count:
+-	qmp->init_count--;
++	if (!force)
++		qmp->init_count--;
+ 
+ 	return ret;
+ }
+@@ -3877,16 +3878,10 @@ static int qmp_combo_usb_power_on(struct phy *phy)
+ 	status = pcs + cfg->regs[QPHY_PCS_STATUS];
+ 	ret = readl_poll_timeout(status, val, !(val & PHYSTATUS), 200,
+ 			PHY_INIT_COMPLETE_TIMEOUT);
+-	if (ret) {
++	if (ret)
+ 		dev_err(qmp->dev, "phy initialization timed-out\n");
+-		goto err_disable_pipe_clk;
+-	}
+-
+-	return 0;
+-
+-err_disable_pipe_clk:
+-	clk_disable_unprepare(qmp->pipe_clk);
+ 
++	/* The common power domain owns the PIPE clock, including unwinding. */
+ 	return ret;
+ }
+ 
+-- 
+2.56.0
+

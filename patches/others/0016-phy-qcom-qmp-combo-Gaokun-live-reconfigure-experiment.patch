@@ -1,0 +1,74 @@
+From baacbb01c901937d04ffd7d8ca4c11f3fbe4aa31 Mon Sep 17 00:00:00 2001
+From: zhzy0077 <zhzy0077@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 22:50:28 +0800
+Subject: [PATCH] phy: qcom: qmp-combo: add opt-in Gaokun live-reconfigure
+ experiment
+
+Observed Type-C orientation/mode reconfiguration repeatedly coincides with internal USB keyboard disconnects and PCIe receiver errors on Gaokun3. Add a read-only, default-off, board-scoped module parameter for an isolated test kernel: retain common clocks/regulators and use the DP COM internal reset during forced reconfiguration. Initial/final resource acquisition and release stay unchanged. Hardware acceptance is required; do not enable in production defaults.
+---
+ drivers/phy/qualcomm/phy-qcom-qmp-combo.c | 28 +++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+
+diff --git a/drivers/phy/qualcomm/phy-qcom-qmp-combo.c b/drivers/phy/qualcomm/phy-qcom-qmp-combo.c
+index 30a7824..d4c5ffe 100644
+--- a/drivers/phy/qualcomm/phy-qcom-qmp-combo.c
++++ b/drivers/phy/qualcomm/phy-qcom-qmp-combo.c
+@@ -3627,6 +3627,20 @@ static int qmp_combo_dp_calibrate(struct phy *phy)
+ 	return ret;
+ }
+ 
++/* Gaokun-only diagnostic: keep common clocks/rails across Type-C changes.
++ * Default off. This is an A/B experiment, not a validated hardware quirk.
++ */
++static bool gaokun_keep_common_power;
++module_param(gaokun_keep_common_power, bool, 0444);
++MODULE_PARM_DESC(gaokun_keep_common_power,
++	"Gaokun diagnostic: use internal PHY reset for live Type-C reconfiguration");
++
++static bool qmp_combo_keep_common_power(bool force)
++{
++	return force && gaokun_keep_common_power &&
++		of_machine_is_compatible("huawei,gaokun3");
++}
++
+ static int qmp_combo_com_init(struct qmp_combo *qmp, bool force)
+ {
+ 	const struct qmp_phy_cfg *cfg = qmp->cfg;
+@@ -3638,6 +3652,13 @@ static int qmp_combo_com_init(struct qmp_combo *qmp, bool force)
+ 	if (!force && qmp->init_count++)
+ 		return 0;
+ 
++	if (qmp_combo_keep_common_power(force)) {
++		dev_info(qmp->dev, "diagnostic live reconfigure: orientation=%u mode=%u users=%d usb=%d dp=%d\n",
++			 qmp->orientation, qmp->qmpphy_mode, qmp->init_count,
++			 qmp->usb_init_count, qmp->dp_init_count);
++		goto configure;
++	}
++
+ 	ret = regulator_bulk_enable(cfg->num_vregs, qmp->vregs);
+ 	if (ret) {
+ 		dev_err(qmp->dev, "failed to enable regulators, err=%d\n", ret);
+@@ -3667,6 +3688,7 @@ static int qmp_combo_com_init(struct qmp_combo *qmp, bool force)
+ 		goto err_disable_clocks;
+ 	}
+ 
++configure:
+ 	qphy_setbits(com, QPHY_V3_DP_COM_POWER_DOWN_CTRL, SW_PWRDN);
+ 
+ 	/* override hardware control for reset of qmp phy */
+@@ -3745,6 +3767,12 @@ static int qmp_combo_com_exit(struct qmp_combo *qmp, bool force)
+ 	if (!force && --qmp->init_count)
+ 		return 0;
+ 
++	if (qmp_combo_keep_common_power(force)) {
++		/* Preserve resources used by the still-live DWC3 controller. */
++		qphy_setbits(qmp->com, QPHY_V3_DP_COM_SW_RESET, SW_RESET);
++		return 0;
++	}
++
+ 	reset_control_bulk_assert(cfg->num_resets, qmp->resets);
+ 
+ 	clk_disable_unprepare(qmp->pipe_clk);
+-- 
+2.56.0
+
