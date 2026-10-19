@@ -125,6 +125,17 @@ int main(void) {
         self.assertIn('dpu_crtc_init(dev, primary_planes[i], cursor_planes[i])', objects)
         self.assertIn('encoder->possible_crtcs = (1 << dev->mode_config.num_crtc) - 1;', objects)
 
+    def test_plane_allocator_preserves_crtc_masks(self):
+        source = (self.tree / 'drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c').read_text()
+        common = re.search(r'static struct drm_plane \*dpu_plane_init_common\(.*?\n}',
+                           source, re.S).group(0)
+        self.assertRegex(common, r'drmm_universal_plane_alloc\(dev, struct dpu_plane, base,\s*'
+                         r'possible_crtcs, &dpu_plane_funcs,')
+        for name in ('dpu_plane_init', 'dpu_plane_init_virtual'):
+            backend = re.search(r'struct drm_plane \*' + name + r'\(.*?\n}',
+                                source, re.S).group(0)
+            self.assertRegex(backend, r'dpu_plane_init_common\(dev, type, possible_crtcs,')
+
     def test_sc8280xp_codec_resources_match_iris(self):
         """Catch the missing match and resource-name failures of the old series."""
         iris = self.tree / 'drivers/media/platform/qcom/iris'

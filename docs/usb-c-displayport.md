@@ -98,6 +98,26 @@ The source-only Mutter alternative remains documented in
 [`packaging/mutter/README.md`](../packaging/mutter/README.md) as reference; it
 is not applied by kernel/package workflows.
 
+### Release-15: make the registered plane masks effective
+
+On 2026-10-19, release 13 still returned `possible_crtcs = 0xff` for every
+plane. Its loaded `msm.ko` matched the installed module's build ID and
+contained the Gaokun3 mask calculation, but `dpu_plane_init_common()`
+passed a hard-coded `0xff` to `drmm_universal_plane_alloc()`. Thus the
+restriction in patch 0011 never reached the registered DRM objects.
+Mutter 50.5 and 50.6 both logged atomic commit `EINVAL` during the first
+GDM-to-user handoff with the internal panel and a 4K DP display active.
+
+`patches/others/0013-drm-msm-dpu-honor-plane-possible-crtcs.patch` passes
+`possible_crtcs` to the common allocator. Release 15 includes this fix.
+Regression coverage checks the allocator expression, all 8-bit mask values,
+and both backend call paths in the fully patched kernel source. The earlier
+mask-helper tests alone did not detect the discarded argument.
+
+Hardware acceptance must query the registered primary masks (`0x1`, `0x2`,
+`0x4`) and repeat preconnected dual-display boot, GDM/user handoff, logout,
+hotplug and suspend/resume. This source fix has not yet been boot-tested.
+
 ### Release-12 isolated test build
 
 The RPM workflow accepts `test_suffix=-dp12` to produce separate kernel/module

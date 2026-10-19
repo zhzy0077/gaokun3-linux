@@ -15,12 +15,23 @@ def added_source():
                      if line.startswith('+') and not line.startswith('+++'))
 
 
+def allocator_mask():
+    patch = ROOT / 'patches/others/0013-drm-msm-dpu-honor-plane-possible-crtcs.patch'
+    context = '\n'.join(line[1:] for line in patch.read_text().splitlines()
+                        if line.startswith((' ', '+')) and not line.startswith('+++'))
+    return re.search(r'drmm_universal_plane_alloc\(dev, struct dpu_plane, base,\s*'
+                     r'(\w+), &dpu_plane_funcs,', context).group(1)
+
+
 def mask_function():
     return re.search(r'static unsigned long dpu_plane_possible_crtcs\(.*?\n}',
                      added_source(), re.S).group(0)
 
 
 class DpuPlaneOwnershipTests(unittest.TestCase):
+    def test_common_allocator_uses_the_caller_mask(self):
+        self.assertEqual(allocator_mask(), 'possible_crtcs')
+
     def test_both_plane_backends_use_the_primary_index(self):
         source = added_source()
         self.assertIn('#include <linux/of.h>', source)
@@ -46,6 +57,12 @@ static const char *machine;
 static bool of_machine_is_compatible(const char *compatible)
 { return machine && !strcmp(machine, compatible); }
 ''' + mask_function() + r'''
+/* Exercise the mask expression passed to the final DRM plane allocator. */
+static unsigned long registered_mask(unsigned long possible_crtcs)
+{
+    (void)possible_crtcs;
+    return ''' + allocator_mask() + r''';
+}
 int main(void)
 {
     const char *boards[] = {"huawei,gaokun3", "qcom,sc8280xp",
@@ -58,6 +75,7 @@ int main(void)
             for (unsigned primary = 0; primary < count; primary++) {
                 unsigned long mask = dpu_plane_possible_crtcs(
                     DRM_PLANE_TYPE_PRIMARY, primary, count);
+                mask = registered_mask(mask);
                 assert(mask == (b == 0 ? BIT(primary) : all));
                 union_mask |= mask;
                 if (b == 0) {
@@ -77,6 +95,9 @@ int main(void)
             }
         }
     }
+    /* Arbitrary physical/virtual caller masks must survive unchanged. */
+    for (unsigned long mask = 0; mask <= 0xff; mask++)
+        assert(registered_mask(mask) == mask);
     return 0;
 }
 '''

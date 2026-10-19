@@ -1,0 +1,36 @@
+From: zhzy0077 <zhzy0077@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 22:00:00 +0800
+Subject: [PATCH] drm/msm/dpu: honor possible_crtcs when allocating planes
+
+The common plane initializer accepts possible_crtcs but registers every
+plane with a hard-coded 0xff mask. This discards the Gaokun3 primary-plane
+ownership restriction passed by dpu_kms through both plane backends.
+
+On a dual-display Gaokun3 running release 13, GETPLANE still reports 0xff
+for all planes, and GDM-to-desktop handoff repeatedly fails atomic commits
+with EINVAL. The loaded module contains the board-specific mask calculation
+but its common allocator still passes 0xff.
+
+Pass the caller's mask to drmm_universal_plane_alloc so the registered DRM
+object exposes the intended CRTC compatibility. This also preserves the
+caller-provided masks for physical, virtual, cursor and overlay planes.
+
+Signed-off-by: zhzy0077 <zhzy0077@users.noreply.github.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c
+@@ -1834,7 +1834,7 @@ static struct drm_plane *dpu_plane_init_common(struct drm_device *dev,
+ 	int ret;
+ 
+ 	pdpu = drmm_universal_plane_alloc(dev, struct dpu_plane, base,
+-				0xff, &dpu_plane_funcs,
++				possible_crtcs, &dpu_plane_funcs,
+ 				format_list, num_formats,
+ 				supported_format_modifiers, type, NULL);
+ 	if (IS_ERR(pdpu))
+-- 
+2.56.0

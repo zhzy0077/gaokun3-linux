@@ -110,7 +110,7 @@ class InstallerMediaTests(unittest.TestCase):
         self.assertNotIn('updateloaderentries',boot+installer)
         self.assertFalse(list((ROOT/'packaging/rpm').glob('*sdubby*')))
         spec=(ROOT/'packaging/rpm/gaokun3-platform.spec.in').read_text()
-        self.assertIn('Provides:       gaokun3-boot-integration = 1',spec)
+        self.assertIn('Provides:       gaokun3-boot-integration = 2',spec)
         self.assertIn('tools/el2/$file',spec)
 
 
