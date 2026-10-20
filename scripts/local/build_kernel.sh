@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-KERNEL_TAG="${KERNEL_TAG:-v7.2.9}"
+KERNEL_TAG="${KERNEL_TAG:-v7.3}"
 GAOKUN_DIR="${GAOKUN_DIR:-$HOME/gaokun/linux-gaokun-buildbot}"
 KERN_SRC="${KERN_SRC:-$HOME/gaokun/mainline-linux}"
 KERN_OUT="${KERN_OUT:-$HOME/gaokun/kernel-out}"
@@ -64,6 +64,19 @@ configure_git_identity() {
 
 ensure_source_tree() {
     if [[ -f "$KERN_SRC/arch/arm64/configs/gaokun3_defconfig" ]]; then
+        source "$GAOKUN_DIR/kernel-source.env"
+        python3 "$GAOKUN_DIR/tools/kernel/check-patch-inventory.py"
+        local reviewed_digest
+        reviewed_digest=$(sha256sum "$GAOKUN_DIR/patches/inventory.json" | cut -d " " -f1)
+        if [[ ! -f "$KERN_SRC/.gaokun-patch-inventory.sha256" ]] ||
+           [[ $(cat "$KERN_SRC/.gaokun-patch-inventory.sha256") != "$reviewed_digest" ]]; then
+            echo "Existing source has a different patch inventory; use a new KERN_SRC directory" >&2
+            exit 1
+        fi
+        git -C "$KERN_SRC" merge-base --is-ancestor "$GAOKUN_KERNEL_COMMIT" HEAD || {
+            echo "Existing kernel tree is not based on $GAOKUN_KERNEL_TAG; use a new KERN_SRC directory" >&2
+            exit 1
+        }
         return 0
     fi
 
@@ -80,16 +93,17 @@ ensure_source_tree() {
         git clone https://github.com/KawaiiHachimi/linux-gaokun-buildbot "$GAOKUN_DIR"
     fi
 
-    read -r -p "Use GitHub mirror (gregkh/linux) for Linux stable kernel? [Y/n] [default: Y]: " mirror_choice
+    read -r -p "Use GitHub mirror (torvalds/linux) for Linux v7.3? [Y/n] [default: Y]: " mirror_choice
     mirror_choice="${mirror_choice:-Y}"
     if [[ "$mirror_choice" =~ ^([nN][oO]|[nN])$ ]]; then
-        KERNEL_URL="https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
+        KERNEL_URL="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
     else
-        KERNEL_URL="https://github.com/gregkh/linux.git"
+        KERNEL_URL="https://github.com/torvalds/linux.git"
     fi
 
     rm -rf "$KERN_SRC"
     git clone --depth=1 "$KERNEL_URL" "$KERN_SRC" -b "$KERNEL_TAG"
+    bash "$GAOKUN_DIR/scripts/ci/verify_kernel_source.sh" "$KERN_SRC"
     configure_git_identity
 
     echo "Applying standard gaokun3 patches..."
@@ -97,6 +111,7 @@ ensure_source_tree() {
     git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/others/*.patch
     git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/media/*.patch
     git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0099-arm64-gaokun3-import-local-dts-and-defconfig.patch
+    sha256sum "$GAOKUN_DIR/patches/inventory.json" | cut -d " " -f1 > "$KERN_SRC/.gaokun-patch-inventory.sha256"
 }
 
 el2_state() {

@@ -789,7 +789,7 @@ static int gaokun_ec_probe(struct i2c_client *client)
 	ec->enable_gpio = devm_gpiod_get_optional(dev, "enable",
 						  GPIOD_OUT_HIGH);
 	if (IS_ERR(ec->enable_gpio))
-		dev_err_probe(dev, PTR_ERR(ec->enable_gpio),
+		return dev_err_probe(dev, PTR_ERR(ec->enable_gpio),
 			      "Failed to get enable-gpios\n");
 
 	/* Lid switch */
@@ -829,7 +829,7 @@ static int gaokun_ec_probe(struct i2c_client *client)
 }
 
 static const struct i2c_device_id gaokun_ec_id[] = {
-	{ "gaokun-ec", },
+	{ .name = "gaokun-ec" },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, gaokun_ec_id);

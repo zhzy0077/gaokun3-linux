@@ -15,12 +15,12 @@ def check(out, dtb_name, repo):
     module = out / 'drivers/media/platform/qcom/iris/qcom-iris.ko'
     node = '/soc@0/video-codec@aa00000'
     expected = {
-        'compatible': 'qcom,sc8280xp-venus',
+        'compatible': 'qcom,sc8280xp-iris qcom,sm8250-venus',
         'status': 'okay',
         'firmware-name': 'qcom/sc8280xp/HUAWEI/gaokun3/qcvss8280.mbn',
         'clock-names': 'iface core vcodec0_core',
-        'reset-names': 'core',
-        'power-domain-names': 'venus vcodec0 mx',
+        'reset-names': 'bus core',
+        'power-domain-names': 'venus vcodec0 mx mmcx',
         'interconnect-names': 'cpu-cfg video-mem',
     }
     actual = {key: output('fdtget', '-t', 's', dtb, node, key) for key in expected}
@@ -34,7 +34,7 @@ def check(out, dtb_name, repo):
     if 'firmware_direct:bool' not in output('modinfo', '-F', 'parmtype', module).splitlines():
         raise ValueError('Iris module lacks the direct firmware boot option')
     aliases = output('modinfo', '-F', 'alias', module).splitlines()
-    if 'of:N*T*Cqcom,sc8280xp-venus' not in aliases:
+    if 'of:N*T*Cqcom,sc8280xp-iris' not in aliases:
         raise ValueError('Built Iris module cannot bind the SC8280XP DT node')
     config = (out / '.config').read_text()
     for option in ('CONFIG_VIDEO_QCOM_IRIS=m', 'CONFIG_SM_VIDEOCC_8350=m'):

@@ -40,7 +40,7 @@ The package pipeline builds and installs dedicated package sets:
 
 ### Patch Sources
 
-The patch series targets Linux **7.2.9** from the stable tree. CI and local builds default to `v7.2.9`; see the [kernel build and validation notes (Chinese)](docs/kernel_7.2.9_rebase_zh.md).
+The patch series targets **torvalds/linux v7.3**, pinned in [kernel-source.env](kernel-source.env). CI and local builds verify the source commit and the reviewed [patch inventory](patches/inventory.json) before applying patches. See the [code-based audit and validation (Chinese)](docs/kernel_v7.3_patch_review_zh.md).
 
 - `upstream/*` and `others/0017`: adapted from [right-0903/linux-gaokun](https://github.com/right-0903/linux-gaokun) for the base SC8280XP / gaokun3 enablement, display bring-up, EC suspend/resume, ADSP FastRPC, and DSI stability work
 - `others/0001`: adapted from [whitelewi1-ctrl/matebook-e-go-linux](https://github.com/whitelewi1-ctrl/matebook-e-go-linux) to avoid setting `USE_BDADDR_PROPERTY` when the adapter address is invalid
@@ -48,9 +48,10 @@ The patch series targets Linux **7.2.9** from the stable tree. CI and local buil
 - `others/0003`: adapted from [chiyuki0325/EGoTouchRev-Linux](https://github.com/chiyuki0325/EGoTouchRev-Linux) to add the Himax HX83121A SPI touchscreen driver
 - `others/0004`: local upstream-based fix for Gaokun UCSI initialization recovery and USB-C DisplayPort state synchronization; see [USB-C DisplayPort recovery](docs/usb-c-displayport.md)
 - `others/0009`, `others/0010` and the rear-camera DTS wiring: adapted from [vahiru/gaokun-android](https://github.com/vahiru/gaokun-android) for the OV13B10 variant, device-tree matching, shared camera/display rail sequencing and camera clock parking; see [camera support and validation](docs/camera_support.md)
-- `media/*`: SC8280XP Iris support adapted from [Dmitry Baryshkov's v3 series](https://lkml.indiana.edu/2601.3/00690.html) and Qualcomm review for Linux 7.2.9; see [video decoding validation](docs/video-decoding.md)
+- `media/0004`: Gaokun EL2 direct firmware boot on the upstream SC8280XP Iris binding and SM8250 fallback
+- `media/0005`: Iris timestamp bounds, EOS and decoder restart fixes; [earlier hardware validation](docs/video-decoding.md) records the 7.2.9 implementation
 - `0099`: local patch in this repository to import the current DTS files and `gaokun3_defconfig`
-- **[Optional]** `el2/*`: adapted from [TravMurav/linux](https://github.com/TravMurav/linux/tree/x13s-6.18-v1.1-cxsd) for the EL2 boot path, including SMP2P handover, remoteproc attach/restart flow, SCM/SHM owner handling, and related rpmsg/QRTR/pmic_glink stability fixes
+- **[Optional]** `el2/*`: adapted from [TravMurav/linux](https://github.com/TravMurav/linux/tree/x13s-6.18-v1.1-cxsd) for the EL2 boot path, including SMP2P handover, remoteproc attach/stop flow, SCM/SHM owner handling, and related rpmsg/QRTR stability fixes
 
 ### Tool Sources
 

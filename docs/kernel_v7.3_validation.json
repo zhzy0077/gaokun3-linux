@@ -1,0 +1,228 @@
+{
+  "date": "2026-10-20",
+  "upstream_tag": "v7.3",
+  "upstream_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
+  "patch_inventory_sha256": "319e52deac40449fb289f48a513f634cb767d73219edff1513c06fd1f014ba11",
+  "source_postimages": {
+    "standard": {
+      "compared_patch_target_files": 41,
+      "all_match": true
+    },
+    "el2": {
+      "compared_patch_target_files": 52,
+      "all_match": true
+    }
+  },
+  "toolchain": {
+    "gcc": "16.2.1",
+    "rust": "1.99.0 Fedora 44 portable RPM extraction",
+    "bindgen": "0.72.1",
+    "libclang": "22.1.8"
+  },
+  "configs": [
+    {
+      "distro": "fedora",
+      "variant": "standard",
+      "config_sha256": "509db2cc042e7690c518f20396a40b18e0988cdb90dcd636c0cf0055e47161e5",
+      "report_sha256": "aeba2b103f582a1a967f199665e7ece34adbb82e6818a7f069c05641a66c350d",
+      "rust_enabled": true,
+      "strict_audit": "passed"
+    },
+    {
+      "distro": "fedora",
+      "variant": "el2",
+      "config_sha256": "0643d5abd00c8a8a89d3934a7060ac8a87857db79a0da5a3b152251d2136a542",
+      "report_sha256": "da6813ac5979b4fca61e9ab91e0503259e87a97d993dcfc806c4004ea693a870",
+      "rust_enabled": true,
+      "strict_audit": "passed"
+    },
+    {
+      "distro": "ubuntu",
+      "variant": "standard",
+      "config_sha256": "1ae10827bc0381d7f6d7660c6034aadaec7592e6664fc1384132010b264ac2e1",
+      "report_sha256": "2f04cdbde79f15dafc6358c9247ccb0a23851e2465aa3104dd50e72999d6c8c0",
+      "rust_enabled": true,
+      "strict_audit": "passed"
+    },
+    {
+      "distro": "ubuntu",
+      "variant": "el2",
+      "config_sha256": "f578c9fa13ffeaaa15d7cd244852260bc6f5f561468665cd5ce08a3048f11126",
+      "report_sha256": "a7c9162d30afa463e6e3a9a43a339ba8735c51fd1444f4b651d9b36622d88f75",
+      "rust_enabled": true,
+      "strict_audit": "passed"
+    }
+  ],
+  "compiled_changed_c_files": [
+    {
+      "source": "arch/arm64/kernel/cpuinfo.c",
+      "object_sha256": "1a0be0acd3d378826115ceaf425da73523162aaff8376a9796c02541e1512def"
+    },
+    {
+      "source": "drivers/bluetooth/btqca.c",
+      "object_sha256": "067977252c1fb359e19a00eb1724dc1866ca105d0a103485e5b6597e341442a7"
+    },
+    {
+      "source": "drivers/char/tpm/tpm_qcom_qsee.c",
+      "object_sha256": "66c92355b79527dfd60f08fa36be8b32b2c811102294162bdbd40602d6b284a7"
+    },
+    {
+      "source": "drivers/clk/qcom/camcc-sc8280xp.c",
+      "object_sha256": "a35e723e810595b6e76499c52eef25c2d0aa3444f098c9cc4024afb0cec315d9"
+    },
+    {
+      "source": "drivers/firmware/qcom/qcom_qseecom.c",
+      "object_sha256": "c0fddaf0ea58a93abdd2abbdabcf367a042d626a9e69315d84c17ba63bb56c53"
+    },
+    {
+      "source": "drivers/firmware/qcom/qcom_scm.c",
+      "object_sha256": "8f1f2185397f6118052ed03d7741fcdeaee9372a09a488c3a99a67436185e198"
+    },
+    {
+      "source": "drivers/firmware/qcom/qcom_tzmem.c",
+      "object_sha256": "c6d302b3f86d180098378f9eb33d59b0e3be0206e0a9c4a213d9b4c20c6831f9"
+    },
+    {
+      "source": "drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c",
+      "object_sha256": "9cc7b051e6b509e93b0f742439be7f282763f958795ca0d82145403e911a89fb"
+    },
+    {
+      "source": "drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c",
+      "object_sha256": "7aa08e8d7c26fdadd775395b69cc46dca74612f8c5baedc0d00cfe5788b8bb83"
+    },
+    {
+      "source": "drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c",
+      "object_sha256": "9d7fedb0c893cda4708c1729d3f5c6ca883d3eb266ae77cff853059653d6cb0a"
+    },
+    {
+      "source": "drivers/gpu/drm/msm/dsi/dsi_host.c",
+      "object_sha256": "d0a35f2e68d8c84a20a90cc47fe2a4a73ee4f570a87281bbb7a5ee45bbb7c9c7"
+    },
+    {
+      "source": "drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c",
+      "object_sha256": "ede57f5896e35677f98ae01f1fa40483ed9875fd808d9491670c452f171f90bb"
+    },
+    {
+      "source": "drivers/gpu/drm/panel/panel-himax-hx83121a.c",
+      "object_sha256": "9a945eb0dd7c9afad44fbae41fd4844c39cc93611ee5757a1e78cce30b37513e"
+    },
+    {
+      "source": "drivers/input/touchscreen/himax-spi-core.c",
+      "object_sha256": "0ec3fd74e20708360e4d23858815fe388aea5b3520143f5c593fa995b7a8a332"
+    },
+    {
+      "source": "drivers/input/touchscreen/hx-algo.c",
+      "object_sha256": "fdf666029060b4617a14af572100d78c8cddb6eb3168efba2170a8261af14fd0"
+    },
+    {
+      "source": "drivers/media/i2c/hi846.c",
+      "object_sha256": "c341f0d9692e95bf8aa0f91f1022f7c2ac28475c4124c4161519543a3e9c93cb"
+    },
+    {
+      "source": "drivers/media/i2c/ov13b10.c",
+      "object_sha256": "155644347d79fdaab28d57c5958cba56af4b627eb9b94b27371c07de925d52e7"
+    },
+    {
+      "source": "drivers/media/platform/qcom/iris/iris_common.c",
+      "object_sha256": "f65fd13794d5e7161e91b082922f96655c683426fb6ba1fd93a0396520937d4a"
+    },
+    {
+      "source": "drivers/media/platform/qcom/iris/iris_core.c",
+      "object_sha256": "026809d72e9ebf6debb18f5d920f500f6213e6bfbab0655939b6ad6dca4b0daa"
+    },
+    {
+      "source": "drivers/media/platform/qcom/iris/iris_firmware.c",
+      "object_sha256": "224272ca612a364438d7c0c7c5f8f3d7bfa38efdfe39cf63e944e071d350fad5"
+    },
+    {
+      "source": "drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c",
+      "object_sha256": "6c2227bb085537cd3debedd0bec671adf1f40adb42bb0af837f9995b0f89cc4f"
+    },
+    {
+      "source": "drivers/media/platform/qcom/iris/iris_probe.c",
+      "object_sha256": "12cea6f99e34132ec33f4493bb42e1183ec7edc32fbc2bd0993e922fbe2c1720"
+    },
+    {
+      "source": "drivers/media/platform/qcom/iris/iris_vdec.c",
+      "object_sha256": "8049e75d3118828f5b4de64ccb27d1b4242870674602246c7eefea522646bfd6"
+    },
+    {
+      "source": "drivers/phy/qualcomm/phy-qcom-qmp-combo.c",
+      "object_sha256": "8261869cdf9c82b2d957fd022dde4c81662738a1a8ccd553358b2e04b3229c2a"
+    },
+    {
+      "source": "drivers/pinctrl/qcom/pinctrl-sc8280xp.c",
+      "object_sha256": "e530649b244490ef65e2975eb8674ef256ae552a5ef094b499969fdec5c3f4ce"
+    },
+    {
+      "source": "drivers/platform/arm64/huawei-gaokun-ec.c",
+      "object_sha256": "9d2c7de05ecac5aa9397df4429151248785266e4cc32f35f8a26f97148cb7d4b"
+    },
+    {
+      "source": "drivers/power/supply/huawei-gaokun-battery.c",
+      "object_sha256": "0dfe9a01916fcce1543601f675fe03c8f7d8dcb8187737c480d4a513e110e4d5"
+    },
+    {
+      "source": "drivers/remoteproc/qcom_q6v5.c",
+      "object_sha256": "67bb144e8e3a1536d4d925ac19e18840cc2629c8c5977f14f452061b6b044a56"
+    },
+    {
+      "source": "drivers/remoteproc/qcom_q6v5_pas.c",
+      "object_sha256": "f9576c67dd8e849dabcba929ad8640172548eac8e88d40440039d896e12dd6ce"
+    },
+    {
+      "source": "drivers/rpmsg/rpmsg_core.c",
+      "object_sha256": "2f9c48857296f4b82d8cf100698ca9e11d265f7a841c885b273cfca915447b65"
+    },
+    {
+      "source": "drivers/soc/qcom/smp2p.c",
+      "object_sha256": "bca870426614849363d5691cf0c6bb64a066f3aeb086fdba539f9e30cf5207ee"
+    },
+    {
+      "source": "drivers/usb/typec/ucsi/ucsi_huawei_gaokun.c",
+      "object_sha256": "37fa8e82258e11ef550d95e4f7536412fd643f95e01b0d8976a079330d9f6d31"
+    },
+    {
+      "source": "net/qrtr/smd.c",
+      "object_sha256": "9605f8600bc19435fd7e2909f34919cfc301110ff37daa4815786b64527a4ef1"
+    },
+    {
+      "source": "sound/soc/qcom/qdsp6/audioreach.c",
+      "object_sha256": "859f53dd49cb9666ff94eced2e46db55b96a1c38622f7cb12178dd5512c56a19"
+    }
+  ],
+  "tests": {
+    "total": 137,
+    "passed": 135,
+    "skipped": 2,
+    "failed": 0,
+    "patch_chain_and_native_cases": 11
+  },
+  "dtb": {
+    "standard_sha256": "027eccfa5a7bbb56ff372f730bb609db8c8272083cee6157892b46aad26f91ce",
+    "el2_sha256": "b473631d059caea3d8a607533e4d43b5f89eac9f6dcd402f5065bbdc6b9f0faf",
+    "all_four_dsps_broken_reset": true,
+    "iris_compatible": [
+      "qcom,sc8280xp-iris",
+      "qcom,sm8250-venus"
+    ],
+    "firmware": "qcom/sc8280xp/HUAWEI/gaokun3/qcvss8280.mbn"
+  },
+  "logs": {
+    "kbuild-final-standard.log": {
+      "sha256": "844d9730e290a0e03889e1ac280da8cb87b58bc41c3a1f530efe918ef7509f04",
+      "compiler_diagnostics": []
+    },
+    "kbuild-final-el2.log": {
+      "sha256": "8004d622795aae0bb64c339a94cc5d313b4d285eb11106bce643120c72065e1a",
+      "compiler_diagnostics": []
+    },
+    "unit-tests-final.log": {
+      "sha256": "485a2b46fb51de20c1216616eba839a917c3a8f0a195fae75a6dc3fa737f1bcf",
+      "compiler_diagnostics": []
+    }
+  },
+  "complete_image_modules_build": false,
+  "v7_3_hardware_boot_test": false,
+  "workspace_cache": "/home/zhzy0077/.cache/gaokun-rebuild"
+}

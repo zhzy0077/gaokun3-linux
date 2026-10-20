@@ -291,12 +291,17 @@ EOF
 )"
 fi
 
+source "$GAOKUN_DIR/kernel-source.env"
+cp "$GAOKUN_DIR/patches/inventory.json" "$ARTIFACT_DIR/patch-inventory.json"
 cat >"$ARTIFACT_DIR/package-manifest.json" <<EOF
 {
   "package_release_tag": "${PACKAGE_RELEASE_TAG}",
   "kernel_distro": "ubuntu",
   "kernel_config_report": "kernel-config-standard.json",
   "kernel_tag": "${KERNEL_TAG}",
+  "upstream_repository": "${GAOKUN_KERNEL_REPOSITORY}",
+  "upstream_commit": "${GAOKUN_KERNEL_COMMIT}",
+  "patch_inventory": "patch-inventory.json",
   "build_el2": ${BUILD_EL2},
   "built_at_utc": "${BUILD_TIME_UTC}",
   "firmware_version": "${FIRMWARE_DEB_VERSION}",

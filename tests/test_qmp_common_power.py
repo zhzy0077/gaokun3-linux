@@ -48,7 +48,7 @@ struct qmp_phy_cfg {
 };
 struct qmp_combo {
     const struct qmp_phy_cfg *cfg;
-    void *dev, *com, *pcs_aon, *pcs, *pcs_usb, *pcs_misc;
+    void *dev, *com, *pcs_aon, *pcs, *pcs_usb, *pcs_misc, *aon_toggle;
     void *serdes, *tx, *rx, *tx2, *rx2;
     void *vregs, *resets, *clks, *pipe_clk;
     int init_count, usb_init_count, dp_init_count, num_clks;

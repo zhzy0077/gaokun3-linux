@@ -14,14 +14,14 @@ Logitech G304 and Keychron receivers to enumerate and remain connected
 during a one-minute observation. Enable the board-scoped path by default;
 retain gaokun_keep_common_power=0 for rollback and further comparisons.
 ---
- drivers/phy/qualcomm/phy-qcom-qmp-combo.c | 28 +++++++++++++++++++++++
+ drivers/phy/qualcomm/phy-qcom-qmp-combo.c | 28 ++++++++++++++++++++++++++++
  1 file changed, 28 insertions(+)
 
 diff --git a/drivers/phy/qualcomm/phy-qcom-qmp-combo.c b/drivers/phy/qualcomm/phy-qcom-qmp-combo.c
-index 30a7824..d4c5ffe 100644
+index 7f18004..d3cbb05 100644
 --- a/drivers/phy/qualcomm/phy-qcom-qmp-combo.c
 +++ b/drivers/phy/qualcomm/phy-qcom-qmp-combo.c
-@@ -3627,6 +3627,20 @@ static int qmp_combo_dp_calibrate(struct phy *phy)
+@@ -4003,6 +4003,20 @@ static int qmp_combo_dp_calibrate(struct phy *phy)
  	return ret;
  }
  
@@ -42,9 +42,9 @@ index 30a7824..d4c5ffe 100644
  static int qmp_combo_com_init(struct qmp_combo *qmp, bool force)
  {
  	const struct qmp_phy_cfg *cfg = qmp->cfg;
-@@ -3638,6 +3652,13 @@ static int qmp_combo_com_init(struct qmp_combo *qmp, bool force)
- 	if (!force && qmp->init_count++)
- 		return 0;
+@@ -4019,6 +4033,13 @@ static int qmp_combo_com_init(struct qmp_combo *qmp, bool force)
+ 	else
+ 		aon_toggle = qmp->pcs_aon;
  
 +	if (qmp_combo_keep_common_power(force)) {
 +		dev_dbg(qmp->dev, "live reconfigure: orientation=%u mode=%u users=%d usb=%d dp=%d\n",
@@ -56,7 +56,7 @@ index 30a7824..d4c5ffe 100644
  	ret = regulator_bulk_enable(cfg->num_vregs, qmp->vregs);
  	if (ret) {
  		dev_err(qmp->dev, "failed to enable regulators, err=%d\n", ret);
-@@ -3667,6 +3688,7 @@ static int qmp_combo_com_init(struct qmp_combo *qmp, bool force)
+@@ -4048,6 +4069,7 @@ static int qmp_combo_com_init(struct qmp_combo *qmp, bool force)
  		goto err_disable_clocks;
  	}
  
@@ -64,7 +64,7 @@ index 30a7824..d4c5ffe 100644
  	qphy_setbits(com, QPHY_V3_DP_COM_POWER_DOWN_CTRL, SW_PWRDN);
  
  	/* override hardware control for reset of qmp phy */
-@@ -3745,6 +3767,12 @@ static int qmp_combo_com_exit(struct qmp_combo *qmp, bool force)
+@@ -4126,6 +4148,12 @@ static int qmp_combo_com_exit(struct qmp_combo *qmp, bool force)
  	if (!force && --qmp->init_count)
  		return 0;
  
@@ -79,4 +79,3 @@ index 30a7824..d4c5ffe 100644
  	clk_disable_unprepare(qmp->pipe_clk);
 -- 
 2.56.0
-

@@ -63,6 +63,7 @@ mkdir -p "$WORKDIR"
 trap 'report_kernel_disk_usage "kernel build exit"' EXIT
 report_kernel_disk_usage "before kernel builds"
 
+bash "$GAOKUN_DIR/scripts/ci/verify_kernel_source.sh" "$KERN_SRC"
 configure_git_identity "$KERN_SRC"
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/upstream/*.patch
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/others/*.patch

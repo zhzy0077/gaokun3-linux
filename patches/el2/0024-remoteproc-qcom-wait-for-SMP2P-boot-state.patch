@@ -23,14 +23,11 @@ without assuming that a delay alone makes the remote processor ready.
 
 Signed-off-by: zhzy0077 <zhzy0077@users.noreply.github.com>
 ---
- drivers/remoteproc/qcom_q6v5_pas.c | 36 +++++++++++++++++++++++++++++-
- 1 file changed, 35 insertions(+), 1 deletion(-)
-
 diff --git a/drivers/remoteproc/qcom_q6v5_pas.c b/drivers/remoteproc/qcom_q6v5_pas.c
-index c8ccdee..09bf94e 100644
+index 635a44a..335d945 100644
 --- a/drivers/remoteproc/qcom_q6v5_pas.c
 +++ b/drivers/remoteproc/qcom_q6v5_pas.c
-@@ -1,75 +1,77 @@
+@@ -1,98 +1,101 @@
  // SPDX-License-Identifier: GPL-2.0-only
  /*
   * Qualcomm Peripheral Authentication Service remoteproc driver
@@ -50,10 +47,12 @@ index c8ccdee..09bf94e 100644
  #include <linux/module.h>
  #include <linux/of.h>
  #include <linux/of_address.h>
+ #include <linux/of_platform.h>
  #include <linux/of_reserved_mem.h>
  #include <linux/platform_device.h>
  #include <linux/pm_domain.h>
  #include <linux/pm_runtime.h>
+ #include <linux/firmware/qcom/qcom_pas.h>
  #include <linux/firmware/qcom/qcom_scm.h>
  #include <linux/regulator/consumer.h>
  #include <linux/remoteproc.h>
@@ -67,8 +66,9 @@ index c8ccdee..09bf94e 100644
  #include "remoteproc_internal.h"
  
  #define QCOM_PAS_DECRYPT_SHUTDOWN_DELAY_MS	100
-+#define QCOM_PAS_SMP2P_WAIT_MS		100
  
++#define QCOM_PAS_SMP2P_WAIT_MS		100
++
  #define MAX_ASSIGN_COUNT 3
  
  struct qcom_pas_data {
@@ -96,6 +96,7 @@ index c8ccdee..09bf94e 100644
  	bool region_assign_shared;
  	int region_assign_vmid;
  	bool early_boot;
+ 	bool needs_tzmem;
  };
  
  struct qcom_pas {
@@ -108,7 +109,47 @@ index c8ccdee..09bf94e 100644
  	struct clk *aggre2_clk;
  
  	struct regulator *cx_supply;
-@@ -787,86 +789,118 @@ static int qcom_pas_assign_memory_region(struct qcom_pas *pas)
+ 	struct regulator *px_supply;
+ 
+ 	struct device *proxy_pds[3];
+ 
+ 	int proxy_pd_count;
+ 
+ 	const char *dtb_firmware_name;
+ 	int pas_id;
+ 	int dtb_pas_id;
+ 	int lite_pas_id;
+ 	int lite_dtb_pas_id;
+ 	unsigned int minidump_id;
+ 	int crash_reason_smem;
+ 	unsigned int smem_host_id;
+ 	bool decrypt_shutdown;
+ 	const char *info_name;
+ 
+ 	const struct firmware *firmware;
+ 	const struct firmware *dtb_firmware;
+ 
+@@ -769,126 +772,158 @@ static int qcom_pas_assign_memory_region(struct qcom_pas *pas)
+ 		ret = of_reserved_mem_region_to_resource(pas->dev->of_node,
+ 							 pas->region_assign_idx + offset,
+ 							 &res);
+ 		if (ret) {
+ 			dev_err(pas->dev, "unable to resolve shareable memory-region index %d\n",
+ 				offset);
+ 			return ret;
+ 		}
+ 
+ 		if (pas->region_assign_shared)  {
+ 			perm[0].vmid = QCOM_SCM_VMID_HLOS;
+ 			perm[0].perm = QCOM_SCM_PERM_RW;
+ 			perm[1].vmid = pas->region_assign_vmid;
+ 			perm[1].perm = QCOM_SCM_PERM_RW;
+ 			perm_size = 2;
+ 		} else {
+ 			perm[0].vmid = pas->region_assign_vmid;
+ 			perm[0].perm = QCOM_SCM_PERM_RW;
+ 			perm_size = 1;
+ 		}
  
  		pas->region_assign_phys[offset] = res.start;
  		pas->region_assign_size[offset] = resource_size(&res);
@@ -210,11 +251,13 @@ index c8ccdee..09bf94e 100644
  	return 0;
  }
  
+ 
  static int qcom_pas_probe(struct platform_device *pdev)
  {
  	const struct qcom_pas_data *desc;
  	struct qcom_pas *pas;
  	struct rproc *rproc;
+ 	struct device_node *node;
  	const char *fw_name, *dtb_fw_name = NULL;
  	const struct rproc_ops *ops = &qcom_pas_ops;
  	int ret;
@@ -223,11 +266,28 @@ index c8ccdee..09bf94e 100644
  	if (!desc)
  		return -EINVAL;
  
- 	if (!qcom_scm_is_available())
+ 	if (!qcom_pas_is_available())
  		return -EPROBE_DEFER;
  
  	fw_name = desc->firmware_name;
  	ret = of_property_read_string(pdev->dev.of_node, "firmware-name",
+ 				      &fw_name);
+ 	if (ret < 0 && ret != -EINVAL)
+ 		return ret;
+ 
+ 	if (desc->dtb_firmware_name) {
+ 		dtb_fw_name = desc->dtb_firmware_name;
+ 		ret = of_property_read_string_index(pdev->dev.of_node, "firmware-name", 1,
+ 						    &dtb_fw_name);
+ 		if (ret < 0 && ret != -EINVAL)
+ 			return ret;
+ 	}
+ 
+ 	if (desc->minidump_id)
+ 		ops = &qcom_pas_minidump_ops;
+ 
+ 	if (device_property_read_bool(&pdev->dev, "qcom,broken-reset"))
+ 		ops = &qcom_pas_ops_no_reset;
+ 
 -- 
 2.56.0
-

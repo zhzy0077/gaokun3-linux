@@ -4,17 +4,15 @@ Date: Sat, 11 Jul 2026 16:55:30 +0000
 Subject: [PATCH 20/20] arm64: gaokun3: import board support
 
 ---
- .../qcom/sc8280xp-huawei-gaokun3-camera.dtsi  | 309 +++++++++++
- .../boot/dts/qcom/sc8280xp-huawei-gaokun3.dts | 456 ++++++++++++----
- arch/arm64/configs/gaokun3_defconfig          | 496 ++++++++++++++++++
- arch/arm64/kernel/cpuinfo.c                  |   3 +
- 4 files changed, 1163 insertions(+), 101 deletions(-)
- create mode 100644 arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-camera.dtsi
- create mode 100644 arch/arm64/configs/gaokun3_defconfig
+ .../dts/qcom/sc8280xp-huawei-gaokun3-camera.dtsi   | 309 +++++++++++++
+ .../boot/dts/qcom/sc8280xp-huawei-gaokun3.dts      | 460 ++++++++++++++-----
+ arch/arm64/configs/gaokun3_defconfig               | 496 +++++++++++++++++++++
+ arch/arm64/kernel/cpuinfo.c                        |   3 +
+ 4 files changed, 1167 insertions(+), 101 deletions(-)
 
 diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-camera.dtsi b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-camera.dtsi
 new file mode 100644
-index 000000000..347d2df68
+index 0000000..347d2df
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-camera.dtsi
 @@ -0,0 +1,309 @@
@@ -328,7 +326,7 @@ index 000000000..347d2df68
 +	};
 +};
 diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
-index cd575e20d..665f472 100644
+index adce030..abcb74a 100644
 --- a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
 +++ b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
 @@ -11,6 +11,7 @@
@@ -638,7 +636,8 @@ index cd575e20d..665f472 100644
 -		reg = <0x4f>;
 +	/* himax ic @48 @49, enable this bus for userspace i2c IO */
 +};
-+
+ 
+-		hid-descr-addr = <0x1>;
 +&spi6 {
 +	qcom,force-gsi-mode;
 +
@@ -650,23 +649,22 @@ index cd575e20d..665f472 100644
 +	touchscreen@0 {
 +		compatible = "himax,hx83121a-ts";
 +		reg = <0>;
- 
--		hid-descr-addr = <0x1>;
++
 +		// TODO: power supply, always on rencently
  		interrupts-extended = <&tlmm 175 IRQ_TYPE_LEVEL_LOW>;
 +		reset-gpios = <&tlmm 99 GPIO_ACTIVE_LOW>;
 +		/* The driver drives this low to select SPI before firmware reload. */
 +		mode-gpios = <&tlmm 174 GPIO_ACTIVE_HIGH>;
-+
+ 
+-		vdd-supply = <&vreg_misc_3p3>;
+-		vddl-supply = <&vreg_s10b>;
 +		panel = <&panel>;
 +
 +		spi-max-frequency = <12000000>;
 +
 +		touchscreen-size-x = <2560>;
 +		touchscreen-size-y = <1600>;
- 
--		vdd-supply = <&vreg_misc_3p3>;
--		vddl-supply = <&vreg_s10b>;
++
 +		/*
 +		 * internally handle invert first, two transformations are
 +		 * non-comutative even if we can swap first.
@@ -826,9 +824,9 @@ index cd575e20d..665f472 100644
 +};
 +
  &pcie2a {
- 	perst-gpios = <&tlmm 143 GPIO_ACTIVE_LOW>;
- 	wake-gpios = <&tlmm 145 GPIO_ACTIVE_LOW>;
-@@ -785,6 +931,9 @@ wifi@0 {
+ 	vddpe-3v3-supply = <&vreg_nvme>;
+ 
+@@ -787,6 +933,9 @@ wifi@0 {
  		vddrfa0p8-supply = <&vreg_pmu_rfa_0p8>;
  		vddrfa1p2-supply = <&vreg_pmu_rfa_1p2>;
  		vddrfa1p8-supply = <&vreg_pmu_rfa_1p7>;
@@ -838,7 +836,7 @@ index cd575e20d..665f472 100644
  	};
  };
  
-@@ -969,13 +1118,18 @@ &remoteproc_nsp0 {
+@@ -971,13 +1120,18 @@ &remoteproc_nsp0 {
  	status = "okay";
  };
  
@@ -858,7 +856,7 @@ index cd575e20d..665f472 100644
  	audio-routing = "SpkrLeft IN", "WSA_SPK1 OUT",
  			"SpkrRight IN", "WSA_SPK2 OUT",
  			"IN1_HPHL", "HPHL_OUT",
-@@ -1125,6 +1279,8 @@ bluetooth {
+@@ -1127,6 +1281,8 @@ bluetooth {
  		vddrfa1p7-supply = <&vreg_pmu_rfa_1p7>;
  
  		max-speed = <3200000>;
@@ -867,7 +865,7 @@ index cd575e20d..665f472 100644
  	};
  };
  
-@@ -1141,7 +1297,7 @@ &usb_0_dwc3_hs {
+@@ -1143,7 +1299,7 @@ &usb_0_dwc3_hs {
  };
  
  &usb_0_hsphy {
@@ -876,7 +874,7 @@ index cd575e20d..665f472 100644
  	vdda18-supply = <&vreg_l1c>;
  	vdda33-supply = <&vreg_l7d>;
  
-@@ -1149,9 +1305,10 @@ &usb_0_hsphy {
+@@ -1151,9 +1307,10 @@ &usb_0_hsphy {
  };
  
  &usb_0_qmpphy {
@@ -889,7 +887,7 @@ index cd575e20d..665f472 100644
  	orientation-switch;
  
  	status = "okay";
-@@ -1178,7 +1335,7 @@ &usb_1_dwc3_hs {
+@@ -1180,7 +1337,7 @@ &usb_1_dwc3_hs {
  };
  
  &usb_1_hsphy {
@@ -898,7 +896,7 @@ index cd575e20d..665f472 100644
  	vdda18-supply = <&vreg_l1c>;
  	vdda33-supply = <&vreg_l13c>;
  
-@@ -1186,9 +1343,10 @@ &usb_1_hsphy {
+@@ -1188,9 +1345,10 @@ &usb_1_hsphy {
  };
  
  &usb_1_qmpphy {
@@ -911,7 +909,7 @@ index cd575e20d..665f472 100644
  	orientation-switch;
  
  	status = "okay";
-@@ -1207,7 +1365,7 @@ &usb_2 {
+@@ -1209,7 +1367,7 @@ &usb_2 {
  };
  
  &usb_2_hsphy0 {
@@ -920,7 +918,7 @@ index cd575e20d..665f472 100644
  	vdda18-supply = <&vreg_l1c>;
  	vdda33-supply = <&vreg_l7d>;
  
-@@ -1215,7 +1373,7 @@ &usb_2_hsphy0 {
+@@ -1217,7 +1375,7 @@ &usb_2_hsphy0 {
  };
  
  &usb_2_hsphy1 {
@@ -929,7 +927,7 @@ index cd575e20d..665f472 100644
  	vdda18-supply = <&vreg_l1c>;
  	vdda33-supply = <&vreg_l7d>;
  
-@@ -1223,7 +1381,7 @@ &usb_2_hsphy1 {
+@@ -1225,7 +1383,7 @@ &usb_2_hsphy1 {
  };
  
  &usb_2_hsphy2 {
@@ -938,7 +936,7 @@ index cd575e20d..665f472 100644
  	vdda18-supply = <&vreg_l8c>;
  	vdda33-supply = <&vreg_l2d>;
  
-@@ -1231,7 +1389,7 @@ &usb_2_hsphy2 {
+@@ -1233,7 +1391,7 @@ &usb_2_hsphy2 {
  };
  
  &usb_2_hsphy3 {
@@ -947,7 +945,7 @@ index cd575e20d..665f472 100644
  	vdda18-supply = <&vreg_l8c>;
  	vdda33-supply = <&vreg_l2d>;
  
-@@ -1239,19 +1397,28 @@
+@@ -1241,19 +1399,28 @@ &usb_2_hsphy3 {
  };
  
  &usb_2_qmpphy0 {
@@ -968,7 +966,7 @@ index cd575e20d..665f472 100644
  	status = "okay";
  };
  
-+&venus {
++&iris {
 +	firmware-name = "qcom/sc8280xp/HUAWEI/gaokun3/qcvss8280.mbn";
 +
 +	status = "okay";
@@ -980,13 +978,12 @@ index cd575e20d..665f472 100644
  &vamacro {
  	pinctrl-0 = <&dmic01_default>, <&dmic23_default>;
  	pinctrl-names = "default";
-@@ -1300,8 +1467,28 @@ hastings_reg_en: hastings-reg-en-state {
+@@ -1302,8 +1469,28 @@ hastings_reg_en: hastings-reg-en-state {
  };
  
  &tlmm {
 +	gpio-reserved-ranges = <70 2>, <74 6>, <83 4>, <125 2>, <128 2>;
- 
--	gpio-reserved-ranges = <70 2>, <74 6>, <83 4>, <125 2>, <128 2>, <154 4>;
++
 +	avdd_reg_en: avdd-reg-en-state {
 +		pins = "gpio52";
 +		function = "gpio";
@@ -1000,7 +997,8 @@ index cd575e20d..665f472 100644
 +		drive-strength = <2>;
 +		bias-disable;
 +	};
-+
+ 
+-	gpio-reserved-ranges = <70 2>, <74 6>, <83 4>, <125 2>, <128 2>, <154 4>;
 +	bl_reg_en: bl-reg-en-state {
 +		pins = "gpio0";
 +		function = "gpio";
@@ -1010,7 +1008,7 @@ index cd575e20d..665f472 100644
  
  	bt_default: bt-default-state {
  		hstp-bt-en-pins {
-@@ -1318,6 +1505,36 @@ hstp-sw-ctrl-pins {
+@@ -1320,6 +1507,36 @@ hstp-sw-ctrl-pins {
  		};
  	};
  
@@ -1047,7 +1045,7 @@ index cd575e20d..665f472 100644
  	i2c4_default: i2c4-default-state {
  		pins = "gpio171", "gpio172";
  		function = "qup4";
-@@ -1332,6 +1549,13 @@ i2c15_default: i2c15-default-state {
+@@ -1334,6 +1551,13 @@ i2c15_default: i2c15-default-state {
  		bias-pull-up;
  	};
  
@@ -1061,7 +1059,7 @@ index cd575e20d..665f472 100644
  	mode_pin_active: mode-pin-state {
  		pins = "gpio26";
  		function = "gpio";
-@@ -1411,6 +1635,39 @@ perst-n-pins {
+@@ -1413,6 +1637,39 @@ perst-n-pins {
  		};
  	};
  
@@ -1101,7 +1099,7 @@ index cd575e20d..665f472 100644
  	ts0_default: ts0-default-state {
  		int-n-pins {
  			pins = "gpio175";
-@@ -1424,7 +1681,6 @@ reset-n-pins {
+@@ -1426,7 +1683,6 @@ reset-n-pins {
  			function = "gpio";
  			drive-strength = <2>;
  			bias-disable;
@@ -1109,7 +1107,7 @@ index cd575e20d..665f472 100644
  		};
  	};
  
-@@ -1485,3 +1741,5 @@ wlan_en: wlan-en-state {
+@@ -1487,3 +1743,5 @@ wlan_en: wlan-en-state {
  		bias-pull-down;
  	};
  };
@@ -1117,7 +1115,7 @@ index cd575e20d..665f472 100644
 +#include "sc8280xp-huawei-gaokun3-camera.dtsi"
 diff --git a/arch/arm64/configs/gaokun3_defconfig b/arch/arm64/configs/gaokun3_defconfig
 new file mode 100644
-index 000000000..b5b83964c
+index 0000000..b5b8396
 --- /dev/null
 +++ b/arch/arm64/configs/gaokun3_defconfig
 @@ -0,0 +1,496 @@
@@ -1618,6 +1616,7 @@ index 000000000..b5b83964c
 +# CONFIG_FTRACE is not set
 +# CONFIG_RUNTIME_TESTING_MENU is not set
 diff --git a/arch/arm64/kernel/cpuinfo.c b/arch/arm64/kernel/cpuinfo.c
+index 45c63f3..fc61b28 100644
 --- a/arch/arm64/kernel/cpuinfo.c
 +++ b/arch/arm64/kernel/cpuinfo.c
 @@ -17,6 +17,7 @@
@@ -1628,7 +1627,7 @@ diff --git a/arch/arm64/kernel/cpuinfo.c b/arch/arm64/kernel/cpuinfo.c
  #include <linux/personality.h>
  #include <linux/preempt.h>
  #include <linux/printk.h>
-@@ -236,6 +237,8 @@
+@@ -236,6 +237,8 @@ static int c_show(struct seq_file *m, void *v)
  	if (compat)
  		seq_printf(m, "model name\t: ARMv8 Processor rev %d (%s)\n",
  			   MIDR_REVISION(midr), COMPAT_ELF_PLATFORM);
@@ -1638,5 +1637,4 @@ diff --git a/arch/arm64/kernel/cpuinfo.c b/arch/arm64/kernel/cpuinfo.c
  	seq_printf(m, "BogoMIPS\t: %lu.%02lu\n",
  		   loops_per_jiffy / (500000UL/HZ),
 -- 
-2.55.0
-
+2.56.0

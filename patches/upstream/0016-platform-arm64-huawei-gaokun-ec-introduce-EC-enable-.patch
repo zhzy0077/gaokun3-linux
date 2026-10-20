@@ -102,7 +102,7 @@ index a83ddc20b5a3..e584045a4da8 100644
 +	ec->enable_gpio = devm_gpiod_get_optional(dev, "enable",
 +						  GPIOD_OUT_HIGH);
 +	if (IS_ERR(ec->enable_gpio))
-+		dev_err_probe(dev, PTR_ERR(ec->enable_gpio),
++		return dev_err_probe(dev, PTR_ERR(ec->enable_gpio),
 +			      "Failed to get enable-gpios\n");
 +
  	/* Lid switch */

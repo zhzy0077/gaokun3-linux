@@ -40,7 +40,7 @@
 
 ### 补丁来源
 
-补丁链以 stable 分支的 Linux **7.2.9** 为基线，CI 和本地构建默认使用 `v7.2.9`。构建与校验方法见 [内核说明](kernel_7.2.9_rebase_zh.md)。
+补丁链以 **torvalds/linux v7.3** 为基线，固定提交见 [kernel-source.env](../kernel-source.env)。构建前检查源码提交与补丁清单；逐项代码依据及验证结果见 [v7.3 补丁审查](kernel_v7.3_patch_review_zh.md)。
 
 - `upstream/*`, `others/0017`：来自 [right-0903/linux-gaokun](https://github.com/right-0903/linux-gaokun)，涵盖基础 SC8280XP / gaokun3 使能、显示点亮、EC 挂起恢复、ADSP FastRPC 以及 DSI 稳定性相关改动
 - `others/0001`：来自 [whitelewi1-ctrl/matebook-e-go-linux](https://github.com/whitelewi1-ctrl/matebook-e-go-linux)，用于在蓝牙地址无效时避免设置 `USE_BDADDR_PROPERTY`
@@ -48,9 +48,10 @@
 - `others/0003`：来自 [chiyuki0325/EGoTouchRev-Linux](https://github.com/chiyuki0325/EGoTouchRev-Linux)，用于加入 Himax HX83121A SPI 触摸屏驱动
 - `others/0004`：基于上游驱动的本地修复，处理 Gaokun UCSI 初始化重试和 USB-C DisplayPort 状态同步；见 [USB-C DisplayPort 修复说明](usb-c-displayport.md)
 - `others/0009`、`others/0010` 与后摄 DTS 接线：参考 [vahiru/gaokun-android](https://github.com/vahiru/gaokun-android)，支持 OV13B10 模组、设备树匹配、相机/显示共用电源轨时序与相机时钟安全停靠；验证方法见 [相机支持说明（英文）](camera_support.md)
-- `media/*`：来自 [jhovold/linux](https://github.com/jhovold/linux/commits/wip/sc8280xp-6.16), 为高通 SC8280XP 平台 添加 Venus 视频编解码驱动支持
+- `media/0004`：基于上游 SC8280XP Iris 接口的 Gaokun EL2 固件直接启动
+- `media/0005`：独立的 Iris 时间戳边界、EOS 和解码器重启修复
 - `0099`：本仓库内的本地补丁，用于导入当前的 DTS 文件和 `gaokun3_defconfig`
-- **[可选]** `el2/*`：来自 [TravMurav/linux](https://github.com/TravMurav/linux/tree/x13s-6.18-v1.1-cxsd)，用于补齐 EL2 启动路径中的 SMP2P 接管、remoteproc attach/restart 流程、SCM/SHM owner 处理，以及 rpmsg / QRTR / pmic_glink 相关稳定性修复
+- **[可选]** `el2/*`：来自 [TravMurav/linux](https://github.com/TravMurav/linux/tree/x13s-6.18-v1.1-cxsd)，用于补齐 EL2 启动路径中的 SMP2P 接管、remoteproc attach/stop 流程、SCM/SHM owner 处理，以及 rpmsg / QRTR 相关稳定性修复
 
 ### Tools 来源
 

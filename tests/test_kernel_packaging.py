@@ -21,7 +21,7 @@ def put(path, text='fixture\n', executable=False):
 
 def kernel_trees(directory, distro='ubuntu', el2=False):
     suffix = '-el2' if el2 else ''
-    krel = f'7.2.9-gaokun3{suffix}+'
+    krel = f'7.3-gaokun3{suffix}+'
     src = directory / f'source{suffix}'
     out = directory / f'kernel-out{suffix}'
     put(src / 'Makefile', '# standalone source Makefile\n')
@@ -153,13 +153,13 @@ class KernelTestSuffixTests(unittest.TestCase):
             for localversion in ('-gaokun3', '-gaokun3-el2'):
                 put(output / 'include/config/auto.conf',
                     'CONFIG_LOCALVERSION=' + localversion + '\n')
-                env = dict(os.environ, KERNELVERSION='7.2.9', LOCALVERSION='')
+                env = dict(os.environ, KERNELVERSION='7.3', LOCALVERSION='')
                 command = ['sh', str(Path(kernel) / 'scripts/setlocalversion'), str(source)]
                 before = subprocess.check_output(command, cwd=output, env=env, text=True).strip()
-                self.assertEqual(before, '7.2.9' + localversion)
+                self.assertEqual(before, '7.3' + localversion)
                 self.assertEqual(self.set_suffix(source, '-dp12').returncode, 0)
                 after = subprocess.check_output(command, cwd=output, env=env, text=True).strip()
-                self.assertEqual(after, '7.2.9-dp12' + localversion)
+                self.assertEqual(after, '7.3-dp12' + localversion)
                 self.assertNotEqual(before, after)
                 (source / 'localversion.gaokun-test').unlink()
 
@@ -223,6 +223,8 @@ class KernelPackagingTests(unittest.TestCase):
         root = Path(directory)
         repo = root / 'repo'
         work = root / 'work'
+        put(repo / 'kernel-source.env', (ROOT / 'kernel-source.env').read_text())
+        put(repo / 'patches/inventory.json', (ROOT / 'patches/inventory.json').read_text())
         put(repo / 'tools/boot/check-kernel-config.py', '# Config validation has its own tests.\n')
         for vendor in ('ath11k', 'qca', 'qcom'):
             put(repo / 'firmware' / vendor / 'test.bin')
@@ -244,7 +246,7 @@ class KernelPackagingTests(unittest.TestCase):
             (tool.parent / name).symlink_to(tool)
         env = dict(os.environ, GAOKUN_DIR=str(repo), WORKDIR=str(work),
                    ARTIFACT_DIR=str(work / 'artifacts'), BUILD_EL2='true',
-                   KERNEL_TAG='v7.2.9', PACKAGE_RELEASE_TAG='fixture-release',
+                   KERNEL_TAG='v7.3', PACKAGE_RELEASE_TAG='fixture-release',
                    KERN_SRC_BASE=str(src), KERN_OUT=str(out),
                    KERN_SRC_EL2=str(src_el2), KERN_OUT_EL2=str(out_el2),
                    FAKE_PACKAGING_LOG=str(root / 'events.jsonl'),
@@ -295,6 +297,10 @@ class KernelPackagingTests(unittest.TestCase):
                         self.assertEqual(list((work / 'rpmbuild' / folder).iterdir()), [])
                     self.assertEqual(list((work / 'rpmbuild/RPMS').rglob('*.rpm')), [])
                 manifest = json.loads((work / 'artifacts/package-manifest.json').read_text())
+                inventory = json.loads((work / 'artifacts/patch-inventory.json').read_text())
+                self.assertEqual(manifest['upstream_commit'], inventory['upstream_commit'])
+                self.assertEqual(manifest['upstream_repository'], 'torvalds/linux')
+                self.assertEqual(manifest['kernel_tag'], inventory['upstream_tag'])
                 for variant in ('standard', 'el2'):
                     for name in manifest['kernels'][variant]['packages'].values():
                         self.assertTrue((work / 'artifacts' / name).is_file(), name)

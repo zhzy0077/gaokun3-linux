@@ -1,0 +1,124 @@
+From: Zhiyuan Zheng <zhizhen@microsoft.com>
+Date: Thu, 15 Oct 2026 13:43:57 +0800
+Subject: [PATCH] media: iris: fix metadata bounds and decoder restart lifecycle
+
+Keep the timestamp index valid for unmatched output timestamps. Clear stopped
+state, handle empty Gen1 EOS, quiesce teardown IRQs and replace scratch buffers
+when restarting a decoder. These changes apply independently of EL2 firmware boot.
+
+---
+diff --git a/drivers/media/platform/qcom/iris/iris_common.c b/drivers/media/platform/qcom/iris/iris_common.c
+index 2583656..b6c1112 100644
+--- a/drivers/media/platform/qcom/iris/iris_common.c
++++ b/drivers/media/platform/qcom/iris/iris_common.c
+@@ -43,7 +43,7 @@ void iris_set_ts_metadata(struct iris_inst *inst, struct vb2_v4l2_buffer *vbuf)
+ 	inst->tss[inst->metadata_idx].ts_us = ts_us;
+ 	inst->tss[inst->metadata_idx].ts_ns = vb->timestamp;
+ 
+-	inst->metadata_idx++;
++	inst->metadata_idx = (inst->metadata_idx + 1) % ARRAY_SIZE(inst->tss);
+ }
+ 
+ int iris_process_streamon_input(struct iris_inst *inst)
+@@ -151,6 +151,7 @@ int iris_process_streamon_output(struct iris_inst *inst)
+ 		return ret;
+ 
+ 	inst->last_buffer_dequeued = false;
++	v4l2_m2m_clear_state(inst->m2m_ctx);
+ 
+ 	return iris_inst_change_sub_state(inst, clear_sub_state, 0);
+ }
+diff --git a/drivers/media/platform/qcom/iris/iris_core.c b/drivers/media/platform/qcom/iris/iris_core.c
+index 8c335db..ad066df 100644
+--- a/drivers/media/platform/qcom/iris/iris_core.c
++++ b/drivers/media/platform/qcom/iris/iris_core.c
+@@ -5,6 +5,8 @@
+ 
+ #include <linux/pm_runtime.h>
+ 
++#include <linux/interrupt.h>
++
+ #include "iris_core.h"
+ #include "iris_firmware.h"
+ #include "iris_state.h"
+@@ -16,6 +18,8 @@ void iris_core_deinit(struct iris_core *core)
+ 
+ 	ret = pm_runtime_resume_and_get(core->dev);
+ 
++	/* The threaded handler takes core->lock; quiesce it before teardown. */
++	disable_irq(core->irq);
+ 	mutex_lock(&core->lock);
+ 	if (core->state != IRIS_CORE_DEINIT) {
+ 		iris_fw_unload(core);
+@@ -27,6 +31,8 @@ void iris_core_deinit(struct iris_core *core)
+ 		core->state = IRIS_CORE_DEINIT;
+ 	}
+ 	mutex_unlock(&core->lock);
++	/* Balance this temporary gate; power-off owns its own IRQ disable. */
++	enable_irq(core->irq);
+ 
+ 	if (!ret)
+ 		pm_runtime_put_sync(core->dev);
+diff --git a/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c b/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
+index bfd7495..f15b35b 100644
+--- a/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
++++ b/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
+@@ -424,6 +424,7 @@ static void iris_hfi_gen1_session_ftb_done(struct iris_inst *inst, void *packet)
+ 		offset = com_pkt->offset;
+ 	}
+ 
++
+ 	if ((hfi_flags & HFI_BUFFERFLAG_EOS) && !filled_len) {
+ 		reinit_completion(&inst->flush_completion);
+ 
+@@ -519,7 +520,9 @@ static void iris_hfi_gen1_session_ftb_done(struct iris_inst *inst, void *packet)
+ 	if (hfi_flags & HFI_BUFFERFLAG_DATACORRUPT)
+ 		flags |= V4L2_BUF_FLAG_ERROR;
+ 
+-	if (hfi_flags & HFI_BUFFERFLAG_DROP_FRAME)
++	/* An empty EOS buffer terminates drain; it does not contain a frame. */
++	if ((hfi_flags & HFI_BUFFERFLAG_DROP_FRAME) &&
++	    !((hfi_flags & HFI_BUFFERFLAG_EOS) && !filled_len))
+ 		flags |= V4L2_BUF_FLAG_ERROR;
+ 
+ 	buf->flags |= flags;
+diff --git a/drivers/media/platform/qcom/iris/iris_vdec.c b/drivers/media/platform/qcom/iris/iris_vdec.c
+index 9e228b7..bff3169 100644
+--- a/drivers/media/platform/qcom/iris/iris_vdec.c
++++ b/drivers/media/platform/qcom/iris/iris_vdec.c
+@@ -370,17 +370,8 @@ int iris_vdec_streamon_input(struct iris_inst *inst)
+ 	if (ret)
+ 		return ret;
+ 
+-	iris_get_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+-
+-	ret = iris_destroy_dequeued_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+-	if (ret)
+-		return ret;
+-
+-	ret = iris_create_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+-	if (ret)
+-		return ret;
+-
+-	ret = iris_queue_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
++	/* Release retained scratch registrations before replacing them. */
++	ret = iris_alloc_and_queue_input_int_bufs(inst);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -526,7 +517,12 @@ int iris_vdec_start_cmd(struct iris_inst *inst)
+ 		return -EBUSY;
+ 	}
+ 
+-	return iris_inst_change_sub_state(inst, clear_sub_state, 0);
++	ret = iris_inst_change_sub_state(inst, clear_sub_state, 0);
++	if (!ret) {
++		inst->last_buffer_dequeued = false;
++		v4l2_m2m_clear_state(inst->m2m_ctx);
++	}
++	return ret;
+ }
+ 
+ int iris_vdec_stop_cmd(struct iris_inst *inst)
+-- 
+2.56.0

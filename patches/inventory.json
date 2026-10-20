@@ -1,0 +1,511 @@
+{
+  "upstream_repository": "torvalds/linux",
+  "upstream_tag": "v7.3",
+  "upstream_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
+  "original_repo_commit": "95845f7",
+  "active": [
+    {
+      "id": "upstream/0002",
+      "path": "patches/upstream/0002-arm64-dts-qcom-sc8280xp-Add-memory-region-for-audio-.patch",
+      "category": "enablement",
+      "code_fact": "ADSP FastRPC 的 memory-region 被驱动用于 remote heap，qcom,vmids 决定分配内存的 SCM 归属；基线缺少这两项。",
+      "source": "drivers/misc/fastrpc.c; sc8280xp.dtsi:remoteproc_adsp",
+      "evidence": "DT/consumer",
+      "sha256": "f4205dedb19c27b3b1b905b6477fc4797e11d194c4ed81635a0b28089c89b6e0"
+    },
+    {
+      "id": "upstream/0005",
+      "path": "patches/upstream/0005-arm64-dts-qcom-sc8280xp-add-MDSS-registers-interconn.patch",
+      "category": "enablement",
+      "code_fact": "msm_mdss 获取 cpu-cfg 并在 runtime resume/suspend 投票；缺失 DT path 时对应寄存器带宽投票为空。",
+      "source": "drivers/gpu/drm/msm/msm_mdss.c:msm_mdss_icc_request_bw",
+      "evidence": "DT/consumer",
+      "sha256": "a0302c1fb1283b40cbd5f7f9d6fc56bddf78d1598bb0901fb463a4379adac5aa"
+    },
+    {
+      "id": "upstream/0012",
+      "path": "patches/upstream/0012-platform-arm64-huawei-gaokun-ec-fix-suspend-resume.patch",
+      "category": "fix",
+      "code_fact": "EC suspend/resume 回调执行 I2C 传输；普通 PM 阶段提供中断完成条件，noirq 阶段不适合该调用路径。",
+      "source": "drivers/platform/arm64/huawei-gaokun-ec.c:gaokun_ec_pm_ops",
+      "evidence": "control-flow",
+      "sha256": "0ce7f81cd63aaaa2e5dd92ec65babdcdc2d72a5ed7e530f434deecab8d0fc22f"
+    },
+    {
+      "id": "upstream/0014",
+      "path": "patches/upstream/0014-drm-msm-dsi-avoid-link-clock-toggles-during-active-v.patch",
+      "category": "workaround",
+      "code_fact": "active video 已持有 link clock/OPP，DCS xfer_restore 又执行 disable/OPP 释放；绕过额外投票改变了真实时钟路径。需新基线亮度/灭屏 A/B。",
+      "source": "drivers/gpu/drm/msm/dsi/dsi_host.c:msm_dsi_host_xfer_prepare/restore",
+      "evidence": "control-flow; hardware A/B pending",
+      "sha256": "653993cbb5d83ece011360cc71b4ad4c7d0f3f3efe8af415b933bea59e444a60"
+    },
+    {
+      "id": "upstream/0015",
+      "path": "patches/upstream/0015-power-supply-gaokun-fix-battery-_STA-handling.patch",
+      "category": "enablement",
+      "code_fact": "bat GPIO 控制 EC 初始化命令发送，A3 事件重新读取 present；本地 DTS 提供 GPIO41。此次补回 GPIO 获取失败的 return。",
+      "source": "drivers/power/supply/huawei-gaokun-battery.c:gaokun_psy_get_bat_present/probe",
+      "evidence": "DT/consumer; native GPIO failure",
+      "sha256": "1841c3aa1f626487024bc4760a41ad09c5b8f7e482582ad11497965b9972416e"
+    },
+    {
+      "id": "upstream/0016",
+      "path": "patches/upstream/0016-platform-arm64-huawei-gaokun-ec-introduce-EC-enable-.patch",
+      "category": "enablement",
+      "code_fact": "EC enable GPIO 在 probe、suspend、resume 被实际驱动；此次补回 GPIO 获取失败的 return，避免错误指针进入后续路径。",
+      "source": "drivers/platform/arm64/huawei-gaokun-ec.c:gaokun_ec_probe/suspend/resume",
+      "evidence": "DT/consumer; native GPIO failure",
+      "sha256": "5e465800c1426a2a42f64d5fc1b2ba9dc53ccf7008bcad7d8032212208e5a12c"
+    },
+    {
+      "id": "upstream/0018",
+      "path": "patches/upstream/0018-HACK-pinctrl-qcom-sc8280xp-do-not-map-gpio175-to-pdc.patch",
+      "category": "workaround",
+      "code_fact": "只删除 GPIO175 到 PDC237 的映射；触屏仍经 TLMM IRQ，唤醒行为发生变化。现有资料不足以证明 v7.3 仍需此 workaround，暂保留待休眠 A/B。",
+      "source": "drivers/pinctrl/qcom/pinctrl-sc8280xp.c:sc8280xp_pdc_map",
+      "evidence": "DT/consumer; hardware A/B pending",
+      "sha256": "8b410c8e1107c14d9d3c971d5429afb13237ea24a7ad45c442d183c2fb72281f"
+    },
+    {
+      "id": "upstream/0020",
+      "path": "patches/upstream/0020-media-hi846-fix-hi846_write_reg_16-handling.patch",
+      "category": "fix",
+      "code_fact": "HI846 set_ctrl 把 pm_runtime_get_if_in_use 的正数传给 write_reg_16；成功 I2C 写不清零导致正数返回。原函数复现，修复函数通过。",
+      "source": "drivers/media/i2c/hi846.c:hi846_write_reg_16/hi846_set_ctrl",
+      "evidence": "native before/after",
+      "sha256": "0febdb3b8e3156db5d5bf0b159503703df1f2268f5da824214aa648b0eeecdea"
+    },
+    {
+      "id": "upstream/0021",
+      "path": "patches/upstream/0021-media-hi846-fix-link-frequency-handling.patch",
+      "category": "fix",
+      "code_fact": "link_freq 由时钟/PLL/lane 参数推导并提供给接收端；原固定表不表达本机模式的实际链路频率。",
+      "source": "drivers/media/i2c/hi846.c:link-frequency controls",
+      "evidence": "data-flow; Kbuild",
+      "sha256": "72a419ddaacd1ad0ba2d634c774118d02fa884fd6f164d8ab28cafa9b92f8293"
+    },
+    {
+      "id": "upstream/0022",
+      "path": "patches/upstream/0022-media-hi846-Add-6MP-and-8MP-modes-support.patch",
+      "category": "enablement",
+      "code_fact": "增加 V4L2 可枚举的 6MP/8MP 模式及实际寄存器表；属于分辨率扩展，基础 probe 不依赖这些模式。",
+      "source": "drivers/media/i2c/hi846.c:mode tables",
+      "evidence": "data-flow; Kbuild",
+      "sha256": "e61162be7872e5f937697cc1b903a03f5bbab87a8b77cf31308b7a54e81c1eee"
+    },
+    {
+      "id": "upstream/0023",
+      "path": "patches/upstream/0023-media-hi846-fix-modes-handling-for-different-lane-ca.patch",
+      "category": "fix",
+      "code_fact": "按 nr_lanes 选择模式表，限制枚举/格式选择到合法 lane 配置；与 0021/0022 的表结构一起维护。",
+      "source": "drivers/media/i2c/hi846.c:mode selection",
+      "evidence": "data-flow; Kbuild",
+      "sha256": "a1a443a36dc293699437410bf66c653017d54abaf5d99cd40a0dc4b65423113d"
+    },
+    {
+      "id": "others/0001",
+      "path": "patches/others/0001-Bluetooth-btqca-only-set-USE_BDADDR_PROPERTY-when-ad.patch",
+      "category": "policy",
+      "code_fact": "仅在读到无效 BDADDR 时设置 USE_BDADDR_PROPERTY；配合本仓库 NVM 地址修补方案。行为可从地址判断分支确认。",
+      "source": "drivers/bluetooth/btqca.c:qca_read_fw_build_info",
+      "evidence": "control-flow; NVM tests",
+      "sha256": "28d95a8f8292b33d62b5ce102bd31131ff49c2196b88b1530d3ea8ec93fa64b5"
+    },
+    {
+      "id": "others/0002",
+      "path": "patches/others/0002-drm-panel-himax-hx83121a-enable-DSC-by-default.patch",
+      "category": "policy",
+      "code_fact": "只把已存在 enable_dsc 参数的默认值置 true；实现和开关均在 upstream，补丁用于默认显示策略。",
+      "source": "drivers/gpu/drm/panel/panel-himax-hx83121a.c:enable_dsc",
+      "evidence": "one-line default; Kbuild",
+      "sha256": "008a37be7484402ab716b78616eb26b7f6384ee6c3167623b677427552a3d5a7"
+    },
+    {
+      "id": "others/0003",
+      "path": "patches/others/0003-Input-touchscreen-add-Himax-HX83121A-SPI-driver.patch",
+      "category": "enablement",
+      "code_fact": "增加 SPI 驱动、事件栈读取、触点追踪和 input 上报；本地 DTS 匹配该 compatible，GPIO174 在 reset 周期驱动。",
+      "source": "drivers/input/touchscreen/himax-spi-core.c; hx-algo.c",
+      "evidence": "DT/consumer; Kbuild; GPIO mode tests",
+      "sha256": "823c932d57e5c5a6e93df084e36a00f901f92dfddf8ab4b4dae6e25d541b304a"
+    },
+    {
+      "id": "others/0004",
+      "path": "patches/others/0004-usb-typec-ucsi-recover-Gaokun-initialization-and-DP.patch",
+      "category": "enablement",
+      "code_fact": "补齐 UCSI 初始化 work 重试、EC sideband ACK、端口及 mux/HPD 状态同步；这些调用仍不在基线驱动中。",
+      "source": "drivers/usb/typec/ucsi/ucsi_huawei_gaokun.c",
+      "evidence": "control-flow; UCSI regression",
+      "sha256": "042448b688536415278594681e26d64fc9bfbb2891387ee4c87752fd8d79969f"
+    },
+    {
+      "id": "others/0005",
+      "path": "patches/others/0005-drm-msm-dpu-fix-DSC-timing-width-truncation.patch",
+      "category": "fix",
+      "code_fact": "DSC width 由 dce_bytes_per_line 向上取整；800 pixels/8bpp/8bpc 得 267，原整数公式得 266，与 DSI timing 不一致。",
+      "source": "drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c:drm_mode_to_intf_timing_params",
+      "evidence": "arithmetic; Kbuild",
+      "sha256": "b11e0af2b68490bd8126b7a4db7bb7c264f1be1a57ffa067c5f1abf9efe30bc5"
+    },
+    {
+      "id": "others/0007",
+      "path": "patches/others/0007-drm-msm-dsi-restore-bonded-PLL-initialization.patch",
+      "category": "workaround",
+      "code_fact": "PLL bias 引用移到 PLL 使用路径，可在 PHY enable 前编程共享 PLL。v7.3 保留上游 revert 后行为；本地原生测试覆盖两次共享使用，实际显示需 A/B。",
+      "source": "drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c:dsi_pll_enable_pll_bias",
+      "evidence": "native resource sequence; hardware A/B pending",
+      "sha256": "81695ac79166338b7e1db54493d4ddbcbf9ed52bf1cc1d797b4e97820e694af5"
+    },
+    {
+      "id": "others/0008",
+      "path": "patches/others/0008-firmware-qcom-add-Gaokun-QSEE-TPM-validation.patch",
+      "category": "experimental",
+      "code_fact": "新增 QSEE fTPM transport；默认 allow_probe=0，不承担普通 Fedora 启动功能。作为显式 opt-in 验证功能保留。",
+      "source": "drivers/char/tpm/tpm_qcom_qsee.c",
+      "evidence": "protocol/native tests; runtime opt-in",
+      "sha256": "c33ca793de1d09dbb49110c83c5ac1fe3628d4dbaea294d89ad5f4071bde7da4"
+    },
+    {
+      "id": "others/0009",
+      "path": "patches/others/0009-media-i2c-ov13b10-support-Gaokun-camera-power.patch",
+      "category": "enablement",
+      "code_fact": "OF compatible 匹配本机 OV13B10，消费共享供电并执行相应启动顺序；DTS 中传感器为 enabled。",
+      "source": "drivers/media/i2c/ov13b10.c",
+      "evidence": "DT/consumer; camera tests; Kbuild",
+      "sha256": "98fb785fee400e1e3f2cec1ba2dd00963d9ed373a7e1aed0736af79f8e5e065c"
+    },
+    {
+      "id": "others/0010",
+      "path": "patches/others/0010-clk-qcom-camcc-sc8280xp-park-camera-clocks.patch",
+      "category": "workaround",
+      "code_fact": "将 CAMNOC/AHB 的时钟操作换为停泊 XO 的 shared ops；运行时会改变 disable/re-enable 的父时钟选择。再次开摄像头的收益需 v7.3 A/B。",
+      "source": "drivers/clk/qcom/camcc-sc8280xp.c",
+      "evidence": "clock ops selection; hardware A/B pending",
+      "sha256": "4a940cfe783288d737e83c7da5d6d4efe4c836e0ffa139623952afd9d1966c03"
+    },
+    {
+      "id": "others/0011",
+      "path": "patches/others/0011-drm-msm-dpu-pin-Gaokun3-primary-planes.patch",
+      "category": "workaround",
+      "code_fact": "Gaokun primary plane 的 mask=BIT(primary_idx)，限制跨 CRTC 分配；硬件适配策略，依赖 0013 才能到达 DRM 对象。",
+      "source": "drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c:_dpu_kms_drm_obj_init",
+      "evidence": "native mask tests; GDM/external-display A/B pending",
+      "sha256": "9198e92370e0922ab2892d428fc9954bfbf5d3b3b23b02c3228ee41112d58ba4"
+    },
+    {
+      "id": "others/0012",
+      "path": "patches/others/0012-ASoC-qcom-audioreach-calibrate-Gaokun3-speaker-gain.patch",
+      "category": "policy",
+      "code_fact": "speaker graph 1 的 Q13 gain 乘 27/8 并饱和；mute=0 保持，其他 graph 和机器不变。属于声音调校。",
+      "source": "sound/soc/qcom/qdsp6/audioreach.c:audioreach_gain_set_vol_ctrl",
+      "evidence": "native gain tests",
+      "sha256": "20f2d5cfdda1912cc88759dc4dea7cae2bf5349ce4442c7c0444cde60b37dd02"
+    },
+    {
+      "id": "others/0013",
+      "path": "patches/others/0013-drm-msm-dpu-honor-plane-possible-crtcs.patch",
+      "category": "fix",
+      "code_fact": "公共 plane allocator 原来丢弃 possible_crtcs 并硬编码 0xff；现在把调用者 mask 传到 DRM 注册。",
+      "source": "drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c:dpu_plane_init_common",
+      "evidence": "call-chain; mask regression",
+      "sha256": "d7b0bb7d4f6a4f0499b7b9843340115bd91f7e4084125ed495eaa302344949ad"
+    },
+    {
+      "id": "others/0014",
+      "path": "patches/others/0014-platform-arm64-gaokun-fix-UCSI-ACK-negative-shift.patch",
+      "category": "fix",
+      "code_fact": "ACK 的 -1 sentinel 在移位前被检查，避免 BIT(-1)；原生测试覆盖 sentinel/边界/端口组合。",
+      "source": "drivers/platform/arm64/huawei-gaokun-ec.c:gaokun_ec_ucsi_pan_ack",
+      "evidence": "native UBSAN boundary tests",
+      "sha256": "fd6bb618c510d8ec51c326c6139ccc927c9f25c49425e7119433fe8f44cb1afb"
+    },
+    {
+      "id": "others/0015",
+      "path": "patches/others/0015-phy-qcom-qmp-combo-fix-error-resource-ownership.patch",
+      "category": "fix",
+      "code_fact": "USB power_on 超时不再归还 common owner 的 PIPE clock；force init 失败不再减少未取得的 init_count。",
+      "source": "drivers/phy/qualcomm/phy-qcom-qmp-combo.c:com_init/usb_power_on",
+      "evidence": "native fault injection",
+      "sha256": "bb31f46424d77a9d0c09d1b7b6ac230343a30db0aab8b05ea21ca8c54a772bc9"
+    },
+    {
+      "id": "others/0016",
+      "path": "patches/others/0016-phy-qcom-qmp-combo-preserve-Gaokun-common-power.patch",
+      "category": "workaround",
+      "code_fact": "force Type-C 重配置保留 clocks/regulator votes，普通 init/final exit 保留原生命周期；v7.3 新 aon_toggle 初始化必须在跳转前执行。",
+      "source": "drivers/phy/qualcomm/phy-qcom-qmp-combo.c:com_init/com_exit",
+      "evidence": "native resource tests; current-kernel USB A/B pending",
+      "sha256": "eca6cd390efa4bf66ee3ae925269ce67de568fc3223268e577332558a25d61e8"
+    },
+    {
+      "id": "others/0017",
+      "path": "patches/others/0017-platform-arm64-huawei-gaokun-ec-set-wakeup-source-pr.patch",
+      "category": "enablement",
+      "code_fact": "以 EC IRQ 注册 wake source，配合 enable GPIO 和 PM 回调顺序；EC 是本机合盖/电池/Type-C 事件入口。",
+      "source": "drivers/platform/arm64/huawei-gaokun-ec.c:probe/suspend/resume",
+      "evidence": "DT/consumer; Kbuild",
+      "sha256": "8cecd8ee7a75da50cf054c37e931e8f0d700a3c708cbe0ed93e12971f52e6c99"
+    },
+    {
+      "id": "media/0004",
+      "path": "patches/media/0004-media-iris-Gaokun-EL2-firmware-and-restart.patch",
+      "category": "enablement",
+      "code_fact": "EL2 firmware_direct=1 时创建独立 firmware IOMMU device，加载 OEM 镜像并写 VPU2 reset；普通路径使用 upstream PAS。移植保留 upstream firmware detection/HFI descriptor 初始化。",
+      "source": "drivers/media/platform/qcom/iris/iris_firmware.c:iris_direct_load",
+      "evidence": "runtime opt-in; Kbuild; new-baseline decode pending",
+      "sha256": "14e4502de791d87c862c24740752087a075d48b1971d3f218d4397c0446b1ad5"
+    },
+    {
+      "id": "media/0005",
+      "path": "patches/media/0005-media-iris-fix-decoder-metadata-EOS-and-restart.patch",
+      "category": "fix",
+      "code_fact": "metadata_idx 在 input 环回后被 output fallback 直接用作数组索引；原函数边界复现。另保留 Gen1 空 EOS、scratch 替换和 stopped-state/IRQ teardown 修复。",
+      "source": "drivers/media/platform/qcom/iris/iris_common.c; iris_buffer.c; iris_vdec.c; iris_core.c",
+      "evidence": "native timestamp before/after; Kbuild; lifecycle hardware pending",
+      "sha256": "d4f43fce757b7f00484fda95fc28e366ce556cad9e740ac63fcfde11440f15f9"
+    },
+    {
+      "id": "0099",
+      "path": "patches/0099-arm64-gaokun3-import-local-dts-and-defconfig.patch",
+      "category": "enablement+policy",
+      "code_fact": "板级 DTS 连接上述驱动与供电/中断/端点；采用 upstream PCIe port reset GPIO 和 Iris label。standalone defconfig 为兼容入口，CPU model 字符串只作展示。",
+      "source": "arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts; camera.dtsi; configs/gaokun3_defconfig; kernel/cpuinfo.c",
+      "evidence": "DTB/EL2 overlay; mirror checks; CPU string tests",
+      "sha256": "2d7bb7d2f18c3653110e64bbfbf9f4036eadab8746665f42c699ab78145b0a32"
+    },
+    {
+      "id": "el2/0001",
+      "path": "patches/el2/0001-soc-qcom-smp2p-Kick-after-requesting-interrupt.patch",
+      "category": "fix",
+      "code_fact": "先注册接收 IRQ 再 kick 远端，避免 DSP 立即回应时本端尚无 handler。",
+      "source": "drivers/soc/qcom/smp2p.c:qcom_smp2p_probe",
+      "evidence": "call ordering; Kbuild",
+      "sha256": "3c5c378b3d533f14497f6be544589de90fee948896f66d8484314bf7573f51a6"
+    },
+    {
+      "id": "el2/0002",
+      "path": "patches/el2/0002-soc-qcom-smp2p-Ensure-there-is-enough-space-for-outb.patch",
+      "category": "fix",
+      "code_fact": "新增 outbound entry 前检查 valid_entries==total_entries，阻止写到 entries 数组之后。",
+      "source": "drivers/soc/qcom/smp2p.c:qcom_smp2p_outbound_entry",
+      "evidence": "bounds/control-flow",
+      "sha256": "d49462b64836759acc39520f3c9224528555962bca917dadb6dda232862009e2"
+    },
+    {
+      "id": "el2/0003",
+      "path": "patches/el2/0003-soc-qcom-smp2p-Use-length-limited-strncmp-for-compar.patch",
+      "category": "fix",
+      "code_fact": "固定长度 SMEM name 未必 NUL 结尾；strncmp 上界为 SMP2P_MAX_ENTRY_NAME，避免 strcmp 越界读。",
+      "source": "drivers/soc/qcom/smp2p.c:qcom_smp2p_notify_in",
+      "evidence": "bounds/control-flow",
+      "sha256": "25a9b5979b92cf29e52663d8214251b16ae891946db341612d0e7a3b9135a4af"
+    },
+    {
+      "id": "el2/0004",
+      "path": "patches/el2/0004-soc-qcom-smp2p-Drop-redundant-stack-copies-of-entry-.patch",
+      "category": "supporting-refactor",
+      "code_fact": "将 name 改 char[] 并去掉栈拷贝；单独不增加设备能力，为 0005 的原位条目复用提供实现结构。",
+      "source": "drivers/soc/qcom/smp2p.c:SMEM entries",
+      "evidence": "dependency of el2/0005",
+      "sha256": "6f01e637dbce053a15e45e4d7b343b2c86a79803aa4ef75b3848d4015824ed43"
+    },
+    {
+      "id": "el2/0005",
+      "path": "patches/el2/0005-soc-qcom-smp2p-Take-over-outgoing-SMEM-items-from-bo.patch",
+      "category": "enablement",
+      "code_fact": "按旧 SMEM header/entry name 复用条目，保留初始 inbound 和 SSR ACK 状态；避免 attach 时重新分配 boot firmware 的 entry。",
+      "source": "drivers/soc/qcom/smp2p.c:qcom_smp2p_scan/outbound_entry",
+      "evidence": "SMEM data-flow; Kbuild",
+      "sha256": "75c326aa1d71bec67defb3115af0a5ce3b90829a84f82edc7e3f0fdeb81b6ce9"
+    },
+    {
+      "id": "el2/0007",
+      "path": "patches/el2/0007-remoteproc-qcom_q6v5-Allow-detecting-detached-state-.patch",
+      "category": "enablement",
+      "code_fact": "读取 ready/handover/fatal/stop IRQ level 决定 RPROC_DETACHED；running DSP 的 attach 入口由此可达。",
+      "source": "drivers/remoteproc/qcom_q6v5.c:qcom_q6v5_read_smp2p_state",
+      "evidence": "native state matrix",
+      "sha256": "50aadc1f3fc2c9d98945c7f3217a715f3b4ddd08a668e34762c251a5a23596ba"
+    },
+    {
+      "id": "el2/0008",
+      "path": "patches/el2/0008-remoteproc-qcom_q6v5-Add-qcom_q6v5_attach.patch",
+      "category": "enablement",
+      "code_fact": "attach 只建立 load-state/completion/running 状态，不取得启动代理投票；使用 v7.3 handover IRQ 引用管理 helper。",
+      "source": "drivers/remoteproc/qcom_q6v5.c:qcom_q6v5_attach",
+      "evidence": "call-chain; Kbuild",
+      "sha256": "926c8f9075e67fe98a1f06938322a0732bc7dcb149a90b5455615bc6ec5ba43e"
+    },
+    {
+      "id": "el2/0009",
+      "path": "patches/el2/0009-remoteproc-qcom_q6v5-Send-SMP2P-stop-signal-in-attac.patch",
+      "category": "fix",
+      "code_fact": "stop 对 ATTACHED 与 RUNNING 都发送 SMP2P 停止信号；保留有效已停止状态的快捷返回。",
+      "source": "drivers/remoteproc/qcom_q6v5.c:qcom_q6v5_request_stop",
+      "evidence": "native stop-state tests",
+      "sha256": "5d727325e21bb138d407b507694dc659ada707785c8157e146e80b8e7a4d0de2"
+    },
+    {
+      "id": "el2/0010",
+      "path": "patches/el2/0010-remoteproc-qcom_q6v5_pas-Attach-running-remoteproc-i.patch",
+      "category": "enablement",
+      "code_fact": "只保留 PAS attach helper/错误清理和初始 SMP2P 探测；已删除本机不使用的 lite shutdown 和 restart policy。",
+      "source": "drivers/remoteproc/qcom_q6v5_pas.c:qcom_pas_attach/probe",
+      "evidence": "native state tests; boolean auto_boot retained",
+      "sha256": "78325b8efc5e467fc0e7ddb2c67715711e310e29ab99933bdeaa38f96d063754"
+    },
+    {
+      "id": "el2/0011",
+      "path": "patches/el2/0011-dt-bindings-firmware-qcom-scm-Add-qcom-shm-bridge-vm.patch",
+      "category": "enablement",
+      "code_fact": "定义 SHM bridge VMID/SELF_OWNER binding 值供 0012/0014 消费；单独没有执行行为。",
+      "source": "include/dt-bindings/firmware/qcom,scm.h",
+      "evidence": "dependency of el2/0012,0014",
+      "sha256": "72fb6aa4eaed11fb06794777ebfde1d94c7fbab0082106c350466d5834d21d68"
+    },
+    {
+      "id": "el2/0012",
+      "path": "patches/el2/0012-wip-firmware-qcom-tzmem-Use-self-owner-bits-when-run.patch",
+      "category": "enablement",
+      "code_fact": "读取 shm-bridge-vmid 后改变 bridge owner bits；SELF_OWNER 路径用于 EL2 下 Linux 持有的内存。",
+      "source": "drivers/firmware/qcom/qcom_tzmem.c",
+      "evidence": "DT/consumer; Kbuild",
+      "sha256": "75137296a0ada72c194eb141a328462be9e3022aea879f6f899de734d498fe93"
+    },
+    {
+      "id": "el2/0014",
+      "path": "patches/el2/0014-arm64-dts-qcom-sc8280xp-el2-Set-correct-owner-for-SC.patch",
+      "category": "enablement",
+      "code_fact": "SC8280XP overlay 把 SELF_OWNER 写入 scm 节点，使 0012 的分支在 EL2 DTB 中生效。",
+      "source": "arch/arm64/boot/dts/qcom/sc8280xp-el2.dtso",
+      "evidence": "compiled overlay",
+      "sha256": "ae1d0adb577c8a8b6c2c5a944750d9f0608c5a20f38ac29e43c118a904b1d180"
+    },
+    {
+      "id": "el2/0016",
+      "path": "patches/el2/0016-wip-remoteproc-qcom_q6v5_pas-Avoid-using-broken-rese.patch",
+      "category": "enablement",
+      "code_fact": "broken-reset 选择没有 start/load 的 ops，仅 attach/stop；保留 devm_rproc 生命周期和 upstream bool auto_boot。",
+      "source": "drivers/remoteproc/qcom_q6v5_pas.c:qcom_pas_ops_no_reset",
+      "evidence": "DT/ops reachability; Kbuild",
+      "sha256": "41da527adce1a4f8ae1a0eabad13ece200702eb925ea35d3480f45e04d9b455f"
+    },
+    {
+      "id": "el2/0018",
+      "path": "patches/el2/0018-arm64-dts-qcom-sc8280xp-el2-Add-qcom-broken-reset-fo.patch",
+      "category": "enablement",
+      "code_fact": "为 ADSP/SLPI/NSP0/NSP1 标记 broken-reset；本机四个 DSP 因而不会选择 reset/restart 分支。",
+      "source": "arch/arm64/boot/dts/qcom/sc8280xp-el2.dtso",
+      "evidence": "compiled overlay; reason to remove el2/0006",
+      "sha256": "a51aeeeb7553e2471faea41843078d6367c704d85a747fe3e5ff24caf86dd684"
+    },
+    {
+      "id": "el2/0020",
+      "path": "patches/el2/0020-rpmsg-core-Call-announce_destroy-only-after-announce.patch",
+      "category": "fix",
+      "code_fact": "只对真正 announce_create 的 endpoint 调 announce_destroy，匹配创建/销毁生命周期。",
+      "source": "drivers/rpmsg/rpmsg_core.c",
+      "evidence": "control-flow; Kbuild",
+      "sha256": "78807cf0c36d18ecf8d65de7cdc02ab2a683ce56dfc5bf7f9f34d04c5e262870"
+    },
+    {
+      "id": "el2/0021",
+      "path": "patches/el2/0021-rpmsg-core-Make-it-easier-to-manually-create-endpoin.patch",
+      "category": "supporting-refactor",
+      "code_fact": "允许 QRTR 显式创建 endpoint；与 0022 的打开/关闭状态机一组维护。",
+      "source": "drivers/rpmsg/rpmsg_core.c",
+      "evidence": "dependency of el2/0022",
+      "sha256": "9a4084a07d2c7d8790ee20f9c5bd0d079a75fdeeb219ac8d2dbcefd7dd716f73"
+    },
+    {
+      "id": "el2/0022",
+      "path": "patches/el2/0022-net-qrtr-smd-Fix-race-conditions-while-opening-closi.patch",
+      "category": "fix",
+      "code_fact": "QRTR 在 endpoint 有效区间注册/解除 node，调整回调并发与释放顺序，避免打开/关闭竞态。",
+      "source": "net/qrtr/smd.c",
+      "evidence": "lifetime/control-flow; Kbuild",
+      "sha256": "4d12b43a8d83f766c59c4ea5ae6133408e58d7969040eb85fa29690b0ecba0f2"
+    },
+    {
+      "id": "el2/0023",
+      "path": "patches/el2/0023-remoteproc-qcom-report-attach-errors-and-SMP2P-state.patch",
+      "category": "fix+diagnostic",
+      "code_fact": "IRQ read error 向 probe 传播；有效 offline 与读取失败分别处理。附带日志用于观察同一状态机，尚保留。",
+      "source": "drivers/remoteproc/qcom_q6v5.c; qcom_q6v5_pas.c; drivers/soc/qcom/smp2p.c",
+      "evidence": "native 64 level/error cases",
+      "sha256": "d4ded69e326f038ebe86835dc8b6b16c4082a38211071dfedd0c0938641920f0"
+    },
+    {
+      "id": "el2/0024",
+      "path": "patches/el2/0024-remoteproc-qcom-wait-for-SMP2P-boot-state.patch",
+      "category": "workaround",
+      "code_fact": "仅 no-reset 且映射返回 ENODEV 时在 probe 内等待，预算 100ms；有效 offline 不强制改成 running。等待机制通过测试，100ms 对所有启动是否足够尚待实测。",
+      "source": "drivers/remoteproc/qcom_q6v5_pas.c:qcom_pas_read_boot_state",
+      "evidence": "native delayed mappings/timeouts; hardware A/B pending",
+      "sha256": "4c6c86159ee4f30751af3f54f548ce3e489aa394325e28f605d49c38d209e9af"
+    }
+  ],
+  "removed": [
+    {
+      "id": "upstream/0019",
+      "former_path": "patches/upstream/0019-arm64-dts-qcom-sc8208xp-move-dsi1_phy-before-dsi1.patch",
+      "decision": "remove-no-functional-delta",
+      "code_fact": "DSI1 PHY 节点搬移；搬移块及剩余 DTS 分别逐字节一致。设备依赖仍由 deferred probe 处理。"
+    },
+    {
+      "id": "others/0006",
+      "former_path": "patches/others/0006-drm-panel-himax-hx83121a-add-backlight-regulator.patch",
+      "decision": "upstream-replaced",
+      "code_fact": "v7.3 panel 已 devm_regulator_get_optional(bl) 并按背光状态 enable/disable；旧 bulk supply 会额外持有 regulator 引用。"
+    },
+    {
+      "id": "media/0001",
+      "former_path": "patches/media/0001-media-dt-bindings-document-SC8280XP-and-SM8350-Venus.patch",
+      "decision": "upstream-replaced",
+      "code_fact": "采用 upstream SC8280XP Iris binding，保留 sm8250 fallback；旧 SC8280XP/SM8350 Venus binding 不再用于本板。"
+    },
+    {
+      "id": "media/0002",
+      "former_path": "patches/media/0002-arm64-dts-qcom-add-SC8280XP-Iris-codec-resources.patch",
+      "decision": "upstream-replaced",
+      "code_fact": "v7.3 sc8280xp.dtsi 已有 iris 节点、clock/reset/power-domain/OPP/IOMMU 资源。"
+    },
+    {
+      "id": "media/0003",
+      "former_path": "patches/media/0003-media-iris-enable-SC8280XP-on-the-VPU2-platform.patch",
+      "decision": "upstream-replaced",
+      "code_fact": "upstream sm8250_data 已提供 4 VPP pipe，SC8280XP 通过 compatible fallback 匹配。"
+    },
+    {
+      "id": "el2/0006",
+      "former_path": "patches/el2/0006-remoteproc-core-Allow-restarting-detached-remoteproc.patch",
+      "decision": "remove-unreachable-policy",
+      "code_fact": "Gaokun EL2 的四个 DSP 都选 no-reset ops，永不选 RESTART_IF_FW_AVAILABLE；恢复 upstream bool auto_boot 和全局 remoteproc core，去掉跨 13 文件的 enum 改造。"
+    },
+    {
+      "id": "el2/0013",
+      "former_path": "patches/el2/0013-arm64-dts-qcom-sc7180-el2-Set-correct-owner-for-SCM-.patch",
+      "decision": "remove-other-soc",
+      "code_fact": "只改 sc7180-el2.dtso，本板 overlay 不引用。"
+    },
+    {
+      "id": "el2/0015",
+      "former_path": "patches/el2/0015-arm64-dts-qcom-x1-el2-Set-correct-owner-for-SCM-SHM-.patch",
+      "decision": "remove-other-soc",
+      "code_fact": "只改 x1-el2.dtso，本板 overlay 不引用。"
+    },
+    {
+      "id": "el2/0017",
+      "former_path": "patches/el2/0017-arm64-dts-qcom-sc7180-el2-Add-qcom-broken-reset-wher.patch",
+      "decision": "remove-other-soc",
+      "code_fact": "只改 sc7180-el2.dtso，本板 overlay 不引用。"
+    },
+    {
+      "id": "el2/0019",
+      "former_path": "patches/el2/0019-hack-soc-qcom-pmic_glink-Avoid-platform-rpmsg-probe-.patch",
+      "decision": "remove-no-device",
+      "code_fact": "Gaokun live DT 和板级 DTS 无 qcom,pmic-glink platform 设备，Type-C/电池走 Huawei EC；无需改全局 platform/rpmsg 注册顺序。"
+    }
+  ]
+}

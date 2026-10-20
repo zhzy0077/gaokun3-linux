@@ -1,4 +1,4 @@
-"""Apply the complete series to pristine Linux 7.2.9 without editing the input.
+"""Apply the complete series to pristine Linux 7.3 without editing the input.
 
 Set GAOKUN_KERNEL_SRC to an unpacked kernel.org tarball or pristine checkout.
 Only paths touched by the patches are copied to a temporary Git repository.
@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 KERNEL_SRC = os.environ.get('GAOKUN_KERNEL_SRC')
 
 
-@unittest.skipUnless(KERNEL_SRC, 'set GAOKUN_KERNEL_SRC to pristine Linux 7.2.9')
+@unittest.skipUnless(KERNEL_SRC, 'set GAOKUN_KERNEL_SRC to pristine Linux 7.3')
 class KernelPatchTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -25,8 +25,8 @@ class KernelPatchTests(unittest.TestCase):
         upstream = Path(KERNEL_SRC)
         version = dict(re.findall(r'^(VERSION|PATCHLEVEL|SUBLEVEL) = (\d+)$',
                                  (upstream / 'Makefile').read_text(), re.MULTILINE))
-        if version != {'VERSION': '7', 'PATCHLEVEL': '2', 'SUBLEVEL': '9'}:
-            raise ValueError('GAOKUN_KERNEL_SRC must contain Linux 7.2.9')
+        if version != {'VERSION': '7', 'PATCHLEVEL': '3', 'SUBLEVEL': '0'}:
+            raise ValueError('GAOKUN_KERNEL_SRC must contain Linux 7.3')
         cls.standard = [p for group in ('upstream', 'others', 'media')
                         for p in sorted((ROOT / 'patches' / group).glob('*.patch'))]
         cls.standard.append(ROOT / 'patches/0099-arm64-gaokun3-import-local-dts-and-defconfig.patch')
@@ -34,6 +34,9 @@ class KernelPatchTests(unittest.TestCase):
         paths = {path for patch in cls.standard + cls.el2
                  for path in re.findall(r'^diff --git a/(\S+) b/\S+$',
                                         patch.read_text(), re.MULTILINE)}
+        paths.add('drivers/remoteproc/remoteproc_core.c')
+        paths.update('drivers/media/platform/qcom/iris/' + name for name in
+                     ('iris_platform_sm8250.h', 'iris_platform_vpu2.c'))
         for path in paths:
             source = upstream / path
             if source.exists():
@@ -48,7 +51,7 @@ class KernelPatchTests(unittest.TestCase):
         cls.git('config', 'user.email', 'test@localhost')
         cls.git('config', 'commit.gpgsign', 'false')
         cls.git('add', '-A')
-        cls.git('commit', '-qm', 'Pristine Linux 7.2.9 patch targets')
+        cls.git('commit', '-qm', 'Pristine Linux 7.3 patch targets')
         # Same order and commands as scripts/ci/20_build_kernel_variants.sh.
         for group in ('upstream', 'others', 'media'):
             cls.git('am', *sorted((ROOT / 'patches' / group).glob('*.patch')))
@@ -140,6 +143,126 @@ int main(void) {
         self.assertEqual(re.search(pattern, patched, re.S).group(0),
                          re.search(pattern, mirror, re.S).group(0))
 
+    @unittest.skipUnless(shutil.which('cc'), 'native C compiler required')
+    def test_hi846_success_clears_runtime_pm_positive_result(self):
+        name = 'drivers/media/i2c/hi846.c'
+        pattern = r'static void hi846_write_reg_16\(.*?\n}'
+        before = re.search(pattern, (Path(KERNEL_SRC) / name).read_text(), re.S).group()
+        after = re.search(pattern, (self.tree / name).read_text(), re.S).group()
+        harness = r'''
+#include <stdint.h>
+#include <errno.h>
+#include <stddef.h>
+typedef uint16_t u16;
+typedef uint8_t u8;
+struct i2c_client { int dev; };
+struct hi846 { struct i2c_client sd; };
+#define v4l2_get_subdevdata(p) (p)
+#define dev_err(...) ((void)0)
+static int result = 4, calls;
+static void put_unaligned_be16(u16 n, u8 *p) { p[0] = n >> 8; p[1] = n; }
+static int i2c_master_send(struct i2c_client *c, u8 *p, size_t n)
+{ (void)c; (void)p; (void)n; ++calls; return result; }
+''' + '\n{function}\n' + r'''
+int main(void) {
+    struct hi846 sensor = {0};
+    int ret = 1;
+    hi846_write_reg_16(&sensor, 0x1234, 0x5678, &ret);
+    if (ret != 0 || calls != 1) return 1;
+    result = 2;
+    hi846_write_reg_16(&sensor, 0, 0, &ret);
+    if (ret != -EIO) return 2;
+    hi846_write_reg_16(&sensor, 0, 0, &ret);
+    return calls == 2 && ret == -EIO ? 0 : 3;
+}
+'''
+        for label, function, expected in [('upstream', before, 1), ('patched', after, 0)]:
+            source = self.tree / f'hi846-{label}.c'
+            binary = source.with_suffix('')
+            source.write_text(harness.replace('{function}', function))
+            subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', str(source), '-o', str(binary)],
+                           check=True, capture_output=True)
+            self.assertEqual(subprocess.run([str(binary)]).returncode, expected, label)
+
+    @unittest.skipUnless(shutil.which('cc'), 'native C compiler required')
+    def test_gpio_probe_errors_are_returned(self):
+        # Execute the actual acquisition/error blocks, including a NULL optional GPIO.
+        for name, owner, field in [('huawei-gaokun-ec.c', 'ec', 'enable_gpio'),
+                                    ('huawei-gaokun-battery.c', 'ecbat', 'bat_sta')]:
+            text = (ROOT / 'drivers/gaokun-ec' / name).read_text()
+            block = re.search(r'\t' + owner + r'->' + field +
+                              r' = devm_gpiod_get_optional\(.*?"Failed to get .*?;\n',
+                              text, re.S).group()
+            harness = r'''
+#include <stdint.h>
+#define GPIOD_OUT_HIGH 1
+#define GPIOD_OUT_LOW 0
+#define IS_ERR(p) ((intptr_t)(p) < 0)
+#define PTR_ERR(p) ((int)(intptr_t)(p))
+static void *gpio;
+#define devm_gpiod_get_optional(...) gpio
+#define dev_err_probe(dev, err, ...) (err)
+struct state { void *enable_gpio, *bat_sta; };
+static int probe(struct state *OWNER) {
+BLOCK
+    return 23;
+}
+int main(void) {
+    struct state s = {0};
+    gpio = (void *)(intptr_t)-517;
+    if (probe(&s) != -517) return 1;
+    gpio = (void *)(intptr_t)-5;
+    if (probe(&s) != -5) return 2;
+    gpio = 0;
+    return probe(&s) == 23 ? 0 : 3;
+}
+'''.replace('OWNER', owner).replace('BLOCK', block)
+            source = self.tree / (name + '-probe.c')
+            binary = source.with_suffix('')
+            source.write_text(harness)
+            subprocess.run(['cc', '-std=c11', str(source), '-o', str(binary)],
+                           check=True, capture_output=True)
+            subprocess.run([str(binary)], check=True)
+
+    @unittest.skipUnless(shutil.which('cc'), 'native C compiler required')
+    def test_iris_timestamp_index_is_valid_between_input_and_output(self):
+        name = 'drivers/media/platform/qcom/iris/iris_common.c'
+        pattern = r'void iris_set_ts_metadata\(.*?\n}'
+        before = re.search(pattern, (Path(KERNEL_SRC) / name).read_text(), re.S).group()
+        after = re.search(pattern, (self.tree / name).read_text(), re.S).group()
+        harness = r'''
+#include <stdint.h>
+typedef uint32_t u32;
+typedef uint64_t u64;
+#define V4L2_BUF_FLAG_TIMECODE 1
+#define V4L2_BUF_FLAG_TSTAMP_SRC_MASK 2
+#define NSEC_PER_USEC 1000
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#define do_div(n, d) ((n) /= (d))
+struct vb2_buffer { u64 timestamp; };
+struct vb2_v4l2_buffer { struct vb2_buffer vb2_buf; u32 flags, timecode; };
+struct iris_inst { u32 metadata_idx; struct { u32 flags, tc; u64 ts_us, ts_ns; } tss[4]; };
+FUNCTION
+int main(void) {
+    struct iris_inst inst = {0};
+    struct vb2_v4l2_buffer vbuf = {0};
+    for (unsigned i = 0; i < 20; ++i) {
+        vbuf.vb2_buf.timestamp = i * 1000;
+        iris_set_ts_metadata(&inst, &vbuf);
+        /* iris_get_ts_metadata uses this index on an unmatched output timestamp. */
+        if (inst.metadata_idx >= ARRAY_SIZE(inst.tss)) return 1;
+    }
+    return 0;
+}
+'''
+        for label, function, expected in [('upstream', before, 1), ('patched', after, 0)]:
+            source = self.tree / f'iris-ring-{label}.c'
+            binary = source.with_suffix('')
+            source.write_text(harness.replace('FUNCTION', function))
+            subprocess.run(['cc', '-std=c11', str(source), '-o', str(binary)],
+                           check=True, capture_output=True)
+            self.assertEqual(subprocess.run([str(binary)]).returncode, expected, label)
+
     def test_plane_allocator_preserves_crtc_masks(self):
         source = (self.tree / 'drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c').read_text()
         common = re.search(r'static struct drm_plane \*dpu_plane_init_common\(.*?\n}',
@@ -155,13 +278,14 @@ int main(void) {
         """Catch the missing match and resource-name failures of the old series."""
         iris = self.tree / 'drivers/media/platform/qcom/iris'
         probe = (iris / 'iris_probe.c').read_text()
-        self.assertRegex(probe, r'"qcom,sc8280xp-venus",\s*\.data = &sc8280xp_data')
+        self.assertRegex(probe, r'"qcom,sm8250-venus",\s*\.data = &sm8250_data')
         platform = (iris / 'iris_platform_vpu2.c').read_text()
-        data = re.search(r'const struct iris_platform_data sc8280xp_data = \{(.*?)\n};',
+        data = re.search(r'const struct iris_platform_data sm8250_data = \{(.*?)\n};',
                          platform, re.S).group(1)
         self.assertIn('.num_vpp_pipe = 4', data)
+        platform += (iris / 'iris_platform_sm8250.h').read_text()
         soc = (self.tree / 'arch/arm64/boot/dts/qcom/sc8280xp.dtsi').read_text()
-        codec = soc.split('venus: video-codec@aa00000 {', 1)[1].split('venus_opp_table:', 1)[0]
+        codec = soc.split('iris: video-codec@aa00000 {', 1)[1].split('iris_opp_table:', 1)[0]
         for field, prop in (('clk_rst_tbl', 'reset-names'), ('opp_pd_tbl', 'power-domain-names')):
             table = re.search(r'\.' + field + r' = (\w+),', data).group(1)
             names = re.findall(r'"([^"]+)"', re.search(
@@ -172,7 +296,7 @@ int main(void) {
         self.assertNotIn('venus-decoder', codec)
         self.assertNotIn('venus-encoder', codec)
         board = (ROOT / 'dts/sc8280xp-huawei-gaokun3.dts').read_text()
-        override = re.search(r'&venus \{(.*?)\};', board, re.S).group(1)
+        override = re.search(r'&iris \{(.*?)\};', board, re.S).group(1)
         self.assertIn('status = "okay";', override)
         fw = re.search(r'firmware-name = "([^"]+)";', override).group(1)
         self.assertTrue((ROOT / 'firmware' / fw).is_file())
@@ -190,6 +314,12 @@ int main(void) {
                          (ROOT / 'drivers/tpm-qcom-qsee/tpm_qcom_qsee.c').read_bytes())
         self.assertEqual((self.tree / 'drivers/usb/typec/ucsi/ucsi_huawei_gaokun.c').read_bytes(),
                          (ROOT / 'drivers/gaokun-ec/ucsi_huawei_gaokun.c').read_bytes())
+        for source, mirror in (
+                ('drivers/platform/arm64/huawei-gaokun-ec.c', 'drivers/gaokun-ec/huawei-gaokun-ec.c'),
+                ('drivers/power/supply/huawei-gaokun-battery.c', 'drivers/gaokun-ec/huawei-gaokun-battery.c'),
+                ('drivers/gpu/drm/panel/panel-himax-hx83121a.c', 'drivers/panel-hx83121a/panel-himax-hx83121a.c'),
+                ('drivers/gpu/drm/msm/dsi/dsi_host.c', 'drivers/panel-hx83121a/dsi_host.c')):
+            self.assertEqual((self.tree / source).read_bytes(), (ROOT / mirror).read_bytes(), source)
         pinctrl = (self.tree / 'drivers/pinctrl/qcom/pinctrl-sc8280xp.c').read_text()
         self.assertNotRegex(pinctrl, r'\{\s*175,\s*237\s*\}')
         self.assertRegex(pinctrl, r'\{\s*174,\s*222\s*\}')
@@ -206,7 +336,8 @@ int main(void) {
         self.assertIn('qcom_sysmon_shutdown_irq_state(pas->sysmon)', attach)
         core = (self.tree / 'drivers/remoteproc/remoteproc_core.c').read_text()
         self.assertIn('schedule_work(&rproc->attach_work)', core)
-        self.assertIn('rproc->auto_boot != RPROC_AUTO_BOOT_RESTART_IF_FW_AVAILABLE', core)
+        self.assertNotIn('RPROC_AUTO_BOOT_RESTART_IF_FW_AVAILABLE', core)
+        self.assertIn('rproc->auto_boot = desc->auto_boot;', pas)
         self.check_stop_behavior()
         from test_adsp_boot_diagnostics import extract_function, functions_from_patch
         for (path, name), function in functions_from_patch().items():

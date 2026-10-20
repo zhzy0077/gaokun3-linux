@@ -607,7 +607,7 @@ static int gaokun_psy_probe(struct auxiliary_device *adev,
 
 	ecbat->bat_sta = devm_gpiod_get_optional(dev, "bat", GPIOD_OUT_LOW);
 	if (IS_ERR(ecbat->bat_sta))
-		dev_err_probe(dev, PTR_ERR(ecbat->bat_sta),
+		return dev_err_probe(dev, PTR_ERR(ecbat->bat_sta),
 			      "Failed to get bat-gpios\n");
 
 	auxiliary_set_drvdata(adev, ecbat);

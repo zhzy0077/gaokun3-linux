@@ -7,7 +7,7 @@ on:
         description: Linux stable tag
         type: string
         required: true
-        default: v7.2.9
+        default: v7.3
       package_release_tag:
         description: Reuse a matching RPM release for image-only retries (empty rebuilds RPMs)
         type: string
