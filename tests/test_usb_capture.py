@@ -12,6 +12,14 @@ SPEC.loader.exec_module(CAPTURE)
 
 
 class UsbCaptureTests(unittest.TestCase):
+    def test_boot_service_is_opt_in_and_bounded(self):
+        unit = (ROOT / 'tools/usb/gaokun-usb-test-capture.service').read_text()
+        self.assertIn('ConditionKernelCommandLine=gaokun.usb_capture=1', unit)
+        self.assertIn('/var/log/gaokun-usb/test-boot-%b', unit)
+        self.assertIn('--follow --seconds 3600', unit)
+        self.assertIn('RuntimeMaxSec=3700', unit)
+        self.assertIn('UMask=0077', unit)
+
     def test_snapshot_replacement_and_sync(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / 'snapshot.json'

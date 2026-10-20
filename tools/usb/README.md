@@ -103,3 +103,28 @@ SAFE/USB mode updates and sideband mux updates share the PHY, while the
 Gaokun applied-state cache only tracks its own writes; QMP mode-switch code
 also ignores common-init and USB-power-on return values. Neither should be
 promoted to a confirmed cause without device/mode/error traces.
+
+## Opt-in capture on test boots
+
+Install `capture-failure.py` as `/usr/local/libexec/gaokun-usb-capture` and
+`gaokun-usb-test-capture.service` under `/etc/systemd/system/`, then enable the
+unit. It runs only with `gaokun.usb_capture=1` in the kernel command line.
+Each boot writes to `/var/log/gaokun-usb/test-boot-<boot-id>/` for one hour;
+restarting it in the same boot rejects the existing directory to preserve
+its original evidence. Normal boot entries without the marker are unaffected.
+
+On 2026-10-20, the `-usbdiag1` EL2 kernel was deployed as independent test
+files because the installed platform package lacks `gaokun3-boot-integration
+>= 2`. No RPM dependencies were bypassed or platform packages upgraded.
+The deployment consists of `/usr/lib/modules/7.2.9-usbdiag1-gaokun3-el2+/`,
+`/boot/config-7.2.9-usbdiag1-gaokun3-el2+`, `/boot/efi/gaokun-usbdiag1/`, and
+`gaokun-usbdiag1-{control,experiment}.conf` under the ESP's `loader/entries/`.
+These test files are not managed by RPM and require explicit removal when
+retiring the experiment. Both entries share the same image, DTB and initramfs;
+only `phy_qcom_qmp_combo.gaokun_keep_common_power=0` versus `=1` differs in
+their kernel options. Both enable QMP dynamic debug and boot capture.
+
+The current Release 13 entry remains the persistent default. The control
+entry is selected for the next boot only. A bounded capture smoke test passed,
+and its private trace instance was removed at exit. Hardware acceptance of
+the new kernel remains pending; see `docs/usb-hub-diagnostics.md`.
