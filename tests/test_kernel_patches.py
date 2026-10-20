@@ -126,10 +126,10 @@ int main(void) {
         self.assertIn('encoder->possible_crtcs = (1 << dev->mode_config.num_crtc) - 1;', objects)
 
     @unittest.skipUnless(shutil.which('cc'), 'native C compiler required')
-    def test_qmp_resource_ownership_and_opt_in_reconfiguration(self):
+    def test_qmp_resource_ownership_and_board_scoped_reconfiguration(self):
         from test_qmp_common_power import exercise_qmp_resources
         source = (self.tree / 'drivers/phy/qualcomm/phy-qcom-qmp-combo.c').read_text()
-        self.assertIn('static bool gaokun_keep_common_power;', source)
+        self.assertIn('static bool gaokun_keep_common_power = true;', source)
         self.assertIn('module_param(gaokun_keep_common_power, bool, 0444)', source)
         exercise_qmp_resources(source)
 

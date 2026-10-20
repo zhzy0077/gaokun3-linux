@@ -1,10 +1,18 @@
 From baacbb01c901937d04ffd7d8ca4c11f3fbe4aa31 Mon Sep 17 00:00:00 2001
 From: zhzy0077 <zhzy0077@users.noreply.github.com>
 Date: Mon, 19 Oct 2026 22:50:28 +0800
-Subject: [PATCH] phy: qcom: qmp-combo: add opt-in Gaokun live-reconfigure
- experiment
+Subject: [PATCH] phy: qcom: qmp-combo: preserve common power on Gaokun
 
-Observed Type-C orientation/mode reconfiguration repeatedly coincides with internal USB keyboard disconnects and PCIe receiver errors on Gaokun3. Add a read-only, default-off, board-scoped module parameter for an isolated test kernel: retain common clocks/regulators and use the DP COM internal reset during forced reconfiguration. Initial/final resource acquisition and release stay unchanged. Hardware acceptance is required; do not enable in production defaults.
+Keep common clocks and regulator votes during forced Type-C reconfiguration
+on Gaokun3, using the DP COM internal software reset instead of cycling the
+external common resources under the live DWC3 controller. Initial power-up
+and final shutdown retain their existing resource lifecycle.
+
+With the same test kernel, the control boot failed to enumerate the USB2
+hub and mouse receiver. Enabling this path allowed USB2 and USB3 hubs,
+Logitech G304 and Keychron receivers to enumerate and remain connected
+during a one-minute observation. Enable the board-scoped path by default;
+retain gaokun_keep_common_power=0 for rollback and further comparisons.
 ---
  drivers/phy/qualcomm/phy-qcom-qmp-combo.c | 28 +++++++++++++++++++++++
  1 file changed, 28 insertions(+)
@@ -17,13 +25,13 @@ index 30a7824..d4c5ffe 100644
  	return ret;
  }
  
-+/* Gaokun-only diagnostic: keep common clocks/rails across Type-C changes.
-+ * Default off. This is an A/B experiment, not a validated hardware quirk.
++/* Keep common clocks/rails across live Type-C changes on Gaokun3.
++ * Enabled by default; the read-only parameter permits boot-time rollback.
 + */
-+static bool gaokun_keep_common_power;
++static bool gaokun_keep_common_power = true;
 +module_param(gaokun_keep_common_power, bool, 0444);
 +MODULE_PARM_DESC(gaokun_keep_common_power,
-+	"Gaokun diagnostic: use internal PHY reset for live Type-C reconfiguration");
++	"Gaokun: preserve common power during live Type-C reconfiguration");
 +
 +static bool qmp_combo_keep_common_power(bool force)
 +{
@@ -39,7 +47,7 @@ index 30a7824..d4c5ffe 100644
  		return 0;
  
 +	if (qmp_combo_keep_common_power(force)) {
-+		dev_info(qmp->dev, "diagnostic live reconfigure: orientation=%u mode=%u users=%d usb=%d dp=%d\n",
++		dev_dbg(qmp->dev, "live reconfigure: orientation=%u mode=%u users=%d usb=%d dp=%d\n",
 +			 qmp->orientation, qmp->qmpphy_mode, qmp->init_count,
 +			 qmp->usb_init_count, qmp->dp_init_count);
 +		goto configure;

@@ -52,32 +52,49 @@ cycle from internal PHY reconfiguration.
 Neither error-path bug has been demonstrated as the cause of the observed
 hotplug failure: current hotplug logs do not show a PHY initialization timeout.
 
-## Isolated experiment: 0016
+## Gaokun3 common-power preservation: 0016
 
-Branch: `usb-phy-diagnostics`. Build namespace: `-usbdiag1`.
-The patch adds a read-only module parameter, default **off**:
+Release 16 enables this path by default on `huawei,gaokun3` for forced Type-C
+reconfiguration. It keeps the existing common resource votes and clocks,
+uses the DP COM internal software reset, and reprograms mode/orientation
+through the existing register sequence. Initial power-up and final shutdown
+retain their resource lifecycle. Other boards retain the original behavior.
+The read-only module parameter permits boot-time rollback:
 
 ```text
-phy_qcom_qmp_combo.gaokun_keep_common_power=1
+phy_qcom_qmp_combo.gaokun_keep_common_power=0
 ```
 
-It is effective only for `huawei,gaokun3` and forced Type-C reconfiguration.
-It keeps the existing common resource votes and clocks, uses the DP COM
-internal software reset, and reprograms mode/orientation through the existing
-register sequence. Initial power-up and final shutdown retain their resource
-lifecycle. This deliberately tests whether the external common power/reset
-cycle contributes to the failure; it is not a validated production quirk.
+The initial `usb-phy-diagnostics` / `-usbdiag1` build defaulted off and was
+used with explicit `=0` and `=1` boot entries for comparison.
 
 Native tests cover parameter off/on, exact board matching, USB3+DP / DP-only /
 USB3-only register paths, reference-count balance and injected regulator,
 clock and USB PHY initialization failures. Hardware testing is still required
 for signal integrity, DP routing, orientation changes and xHCI survival.
 
-## Hardware acceptance plan
+## Hardware results (2026-10-20)
+
+- Control boot `20cf5229`: charger connected directly to the computer, hub on
+  the other USB-C port. The user inserted a flash drive into the hub and then
+  replaced it with a mouse. The drive enumerated after a descriptor timeout;
+  the external USB2 hub and mouse receiver did not enumerate.
+- Enabled boot `cef8062b`: USB2 and USB3 Genesys hubs, Logitech receiver/G304,
+  and Keychron receiver enumerated. The user reported the mouse working.
+  A subsequent 60-second observation retained all USB device paths/IDs and
+  produced no new kernel messages. No xHCI death or port-enable failure was
+  recorded. Initial hub re-enumeration and peripheral/port changes also appear
+  in this boot's logs.
+- Success snapshots and traces are retained under
+  `/var/log/gaokun-usb/test-boot-cef8062bb49b49b49cda2d2c779165fa/`.
+- The user accepted this as the fix and requested promotion to `main`.
+  Extended hotplug, PD, DP and suspend/resume coverage remains follow-up work.
+
+## Further hardware acceptance plan
 
 1. Keep the current boot entry intact. Install only the isolated test packages
    after checking ESP capacity and the standard/EL2 DTB matching the new kernel.
-2. Boot the test kernel **without** the parameter as the control. Save kernel
+2. Boot with `gaokun_keep_common_power=0` as the control. Save kernel
    version, loaded module identity and capture logs before first hotplug.
 3. Boot the same test kernel with the parameter enabled. Verify
    `/sys/module/phy_qcom_qmp_combo/parameters/gaokun_keep_common_power` reports Y.
@@ -87,7 +104,5 @@ for signal integrity, DP routing, orientation changes and xHCI survival.
 5. Acceptance requires no xHCI death, repeated enable/debounce failures,
    integrated keyboard resets or correlated PCIe errors across repeated runs.
 
-Do not infer success from C tests or a successful kernel build. The test
-parameter changes the PHY programming sequence and must remain opt-in until
-hardware results justify it. A failed experiment must retain its logs and
-return to the preserved boot entry.
+Retain logs from each trial. The preserved boot entry and the `=0` parameter
+provide rollback while extending coverage to the remaining configurations.

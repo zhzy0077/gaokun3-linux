@@ -14,6 +14,7 @@ def body(source, name):
 
 
 def exercise_qmp_resources(source):
+    parameter = re.search(r'static bool gaokun_keep_common_power[^;]*;', source).group(0)
     functions = '\n'.join(body(source, name) for name in (
         'qmp_combo_keep_common_power', 'qmp_combo_com_init',
         'qmp_combo_com_exit', 'qmp_combo_usb_power_on'))
@@ -33,7 +34,7 @@ static const char *board = "huawei,gaokun3";
 static bool of_machine_is_compatible(const char *s) { return !strcmp(board, s); }
 enum { QMPPHY_MODE_USB3DP, QMPPHY_MODE_DP_ONLY, QMPPHY_MODE_USB3_ONLY };
 #define TYPEC_ORIENTATION_REVERSE 2
-#define dev_info(...) ((void)0)
+#define dev_dbg(...) ((void)0)
 #define dev_err(...) ((void)0)
 #define qmp_configure(...) ((void)0)
 #define qmp_configure_lane(...) ((void)0)
@@ -86,6 +87,14 @@ int main(void)
     struct qmp_combo q = {.cfg = &cfg, .com = mmio, .pcs = mmio,
         .pcs_aon = mmio, .pcs_usb = mmio};
     struct phy phy = {&q};
+    /* The real initializer defaults on; board and force guards still apply. */
+    assert(gaokun_keep_common_power);
+    assert(qmp_combo_keep_common_power(true));
+    assert(!qmp_combo_keep_common_power(false));
+    board = "lenovo,thinkpad-x13s";
+    assert(!qmp_combo_keep_common_power(true));
+    board = "huawei,gaokun3";
+    gaokun_keep_common_power = false;
     /* Normal init acquires once even with two users. */
     assert(qmp_combo_com_init(&q, false) == 0);
     assert(qmp_combo_com_init(&q, false) == 0);
@@ -145,6 +154,7 @@ int main(void)
     return 0;
 }
 '''
+    harness = harness.replace('static bool gaokun_keep_common_power;', parameter)
     with tempfile.TemporaryDirectory(prefix='gaokun-qmp-test-') as directory:
         path = Path(directory) / 'qmp.c'
         binary = Path(directory) / 'qmp'

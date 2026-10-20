@@ -3,7 +3,7 @@
 
 Name:           @PKG_NAME@
 Version:        @KREL_VERSION@
-Release:        15%{?dist}
+Release:        16%{?dist}
 Summary:        Kernel modules for the gaokun3 kernel
 License:        GPL-2.0-only
 ExclusiveArch:  aarch64
@@ -33,6 +33,10 @@ cp -a usr %{buildroot}/
 /usr/lib/modules/@KREL@
 
 %changelog
+* Tue Oct 20 2026 Gaokun buildbot - @KREL_VERSION@-16
+- Preserve Gaokun3 PHY common power across live Type-C reconfiguration
+- Fix EC UCSI ACK encoding and QMP error-path resource ownership
+
 * Mon Oct 19 2026 Gaokun buildbot - @KREL_VERSION@-15
 - Honor plane CRTC masks in the DPU allocator to fix display-owner handoff
 
