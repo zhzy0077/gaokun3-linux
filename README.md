@@ -1,131 +1,22 @@
-English | [中文](docs/README_zh.md)
+# Fedora on Huawei MateBook E Go 2023
 
-# linux-gaokun-buildbot
+Kernel and runtime packages for Gaokun3 (Snapdragon 8cx Gen 3 / SC8280XP).
+The reviewed kernel source is pinned in [kernel-source.env](kernel-source.env).
 
-Build scripts, patches, kernel config, DTS files, tools, and firmware for Linux images targeting the Huawei MateBook E Go 2023 (codename `gaokun3`) based on Qualcomm Snapdragon 8cx Gen3 (`SC8280XP`).
+## Contents
 
-The image pipeline now uses `systemd-boot` by default and can optionally build a second EL2 kernel variant with `CONFIG_LOCALVERSION="-gaokun3-el2"`.
+- `patches/`, `dts/`, `defconfig/`: kernel changes, device trees and Fedora configuration.
+- `firmware/`: device firmware and redistribution notices; [source manifest](docs/firmware-provenance.json) and [update findings](docs/firmware-provenance.md).
+- `packaging/rpm/`: kernel, modules, development headers, firmware and platform RPMs.
+- `scripts/`: local kernel builds and CI packaging.
+- `tools/`: boot/EL2 integration, audio and microphone configuration, Bluetooth address preparation, display defaults and build consistency checks.
 
-Fedora is the supported target distribution. CI uses GitHub-hosted Ubuntu
-runners as build hosts.
+## Build and install
 
-## What is included
+Run the **Build Package - RPMs Gaokun3** workflow in GitHub Actions to build Fedora packages. Select `build_el2` for the virtualization-enabled kernel used on this device. For a local kernel build, run `bash scripts/local/build_kernel.sh` on Fedora.
 
-### Repository layout
+Install the matching platform, firmware, kernel and modules RPMs with `sudo dnf install ./<package>.rpm`. Development headers are needed for external module builds. Keep Secure Boot disabled for these unsigned kernels and EFI loaders.
 
-- `patches/`: kernel patches and device support changes
-- `defconfig/`: local kernel configuration used by CI/manual builds
-- `dts/`: local mirrors of the patched device tree sources kept in the patch series
-- `docs/`: bilingual usage/build guides and platform notes
-- `firmware/`: minimal firmware bundle used by the image build; [sources and available updates](docs/firmware-provenance.md)
-- `packaging/`: distro kernel and firmware package templates and metadata
-- `tools/`: device-specific helper scripts, service files, and EL2 EFI payloads
-- `scripts/ci/`: workflow build, image creation, and packaging scripts
-- `scripts/local/`: some useful scripts that can be run on the local device
+The platform package supplies speaker/microphone routing, Bluetooth address setup, display orientation, module loading and kernel boot integration. Fedora supplies the desktop and standard device services.
 
-### Workflows
-
-| Workflow | Output |
-| --- | --- |
-| `gaokun3-package-rpms.yml` | Kernel, modules, development files, firmware and platform RPMs |
-| `fedora-gaokun3-release.yml` | Installed Fedora disk image |
-| `gaokun3-installer-image.yml` | Fedora USB installer |
-| `gaokun-video-userspace.yml` | Optional FFmpeg libraries for browser hardware decoding |
-
-### Package outputs
-
-The package pipeline builds and installs dedicated package sets:
-
-- **Fedora (RPM)**: `kernel-gaokun3`, `kernel-modules-gaokun3`, `kernel-devel-gaokun3`, `linux-firmware-gaokun3`, `gaokun3-platform`
-- **Optional EL2 variants**: `*-gaokun3-el2` package set for the second EL2 kernel build
-- Fedora kernel RPMs now ship a matching `dracut.conf.d` snippet and run `dracut` + `kernel-install add` in `%posttrans`, so installing or upgrading the package refreshes the initramfs and BLS entry automatically.
-
-`gaokun3-platform` contains the hardware configuration and desktop helpers. It can be built separately from the kernel; see the [platform RPM guide (Chinese)](docs/fedora_platform_rpm_zh.md). The RPM-based Anaconda workflow is documented in the [installer guide](tools/installer/README.md).
-
-### Releases
-
-- Gaokun RPM releases contain the standalone kernel and firmware package sets used by the image workflows.
-
-### Patch Sources
-
-The patch series targets **torvalds/linux v7.3**, pinned in [kernel-source.env](kernel-source.env). CI and local builds verify the source commit and the reviewed [patch inventory](patches/inventory.json) before applying patches.
-
-- `upstream/*` and `others/0017`: adapted from [right-0903/linux-gaokun](https://github.com/right-0903/linux-gaokun) for the base SC8280XP / gaokun3 enablement, display bring-up, EC suspend/resume, ADSP FastRPC, and DSI stability work
-- `others/0001`: adapted from [whitelewi1-ctrl/matebook-e-go-linux](https://github.com/whitelewi1-ctrl/matebook-e-go-linux) to avoid setting `USE_BDADDR_PROPERTY` when the adapter address is invalid
-- `others/0002`: local change in this repository to enable DSC and allow 60 Hz / 120 Hz switching
-- `others/0003`: adapted from [chiyuki0325/EGoTouchRev-Linux](https://github.com/chiyuki0325/EGoTouchRev-Linux) to add the Himax HX83121A SPI touchscreen driver
-- `others/0004`: local upstream-based fix for Gaokun UCSI initialization recovery and USB-C DisplayPort state synchronization; see [USB-C DisplayPort recovery](docs/usb-c-displayport.md)
-- `others/0009`, `others/0010` and the rear-camera DTS wiring: adapted from [vahiru/gaokun-android](https://github.com/vahiru/gaokun-android) for the OV13B10 variant, device-tree matching, shared camera/display rail sequencing and camera clock parking; see [camera support and validation](docs/camera_support.md)
-- `media/0004`: Gaokun EL2 direct firmware boot on the upstream SC8280XP Iris binding and SM8250 fallback
-- `media/0005`: Iris timestamp bounds, EOS and decoder restart fixes; [earlier hardware validation](docs/video-decoding.md) records the 7.2.9 implementation
-- `0099`: local patch in this repository to import the current DTS files and `gaokun3_defconfig`
-- **[Optional]** `el2/*`: adapted from [TravMurav/linux](https://github.com/TravMurav/linux/tree/x13s-6.18-v1.1-cxsd) for the EL2 boot path, including SMP2P handover, remoteproc attach/stop flow, SCM/SHM owner handling, and related rpmsg/QRTR stability fixes
-
-### Tool Sources
-
-- `tools/audio`, `tools/bluetooth`: adapted from [whitelewi1-ctrl/matebook-e-go-linux](https://github.com/whitelewi1-ctrl/matebook-e-go-linux)
-- `tools/el2/qebspilaa64.efi`: sourced from [stephan-gh/qebspil](https://github.com/stephan-gh/qebspil)
-- `tools/el2/slbounceaa64.efi`: sourced from [TravMurav/slbounce](https://github.com/TravMurav/slbounce)
-- `tools/touchscreen-tuner`: adapted from [chiyuki0325/EGoTouchRev-Linux](https://github.com/chiyuki0325/EGoTouchRev-Linux), with GTK4 GUI improvements in this repository
-
-## Boot artifact layout
-
-The image and local-install workflows now follow the standard `kernel-install` + BLS flow instead of hand-writing `systemd-boot` entries.
-
-- BLS entry names and entry directories are generated by `kernel-install`. With the default `--entry-token=machine-id`, filenames are tied to `/etc/machine-id`, e.g. `loader/entries/<machine-id>-<kernel-release>.conf`.
-- Kernel, initrd/initramfs, and DTB files copied into the ESP are also placed under the matching `<entry-token>/<kernel-release>/` directory automatically by the distro hook.
-- A compatibility copy of the DTB is also kept in `/boot` so users can switch to GRUB more easily later.
-- Fedora DTBs are installed in `/usr/lib/modules/<kernel-release>/dtb/qcom/` for `kernel-install`, plus `/boot/dtb-<kernel-release>/qcom/` as a compatibility copy.
-- The Gaokun3 image scripts provide `/etc/kernel/cmdline` and `/etc/kernel/devicetree`, then call `kernel-install add` to populate the final BLS entry.
-
-## Secure Boot limitation
-
-Secure Boot cannot currently be enabled for Linux on this device.
-
-Observed firmware trust state (BIOS 2.16):
-
-- PK: `HUAWEI`
-- KEK: `Microsoft Corporation KEK 2K CA 2023` only, with no KEK 2011
-- db: `Microsoft Windows Production PCA 2011` only; neither `Microsoft UEFI CA 2011` nor `Microsoft UEFI CA 2023` (third-party) is present
-- dbx: 83 SHA256 entries
-- `SetupMode=0`. The BIOS exposes only the Secure Boot Enable/Disable switch, with no custom key management, so an owner key cannot be enrolled.
-
-Consequences:
-
-- The Linux shim trust anchor is missing. Fedora `shim-aa64` is signed by `Microsoft UEFI CA 2023`, which is not in db, so the firmware rejects it; MOK enrollment cannot establish the initial firmware-to-shim trust.
-- Microsoft's published third-party CA append payload `DBUpdate3P2023.bin` is authenticated by `Microsoft Corporation KEK CA 2011`, which is absent here. The enrolled KEK2023 cannot validate it, so it must not be applied.
-- The first-party `DBUpdate1P2023.bin` (`Windows UEFI CA 2023`) append does verify against the enrolled KEK2023, but it adds only the Windows CA, not the third-party CA used by shim.
-- The Huawei PK-signed KEK update payloads Microsoft publishes only add KEK2023, which is already enrolled.
-
-No KEK2023-authorized third-party CA append payload or OEM-supported trust-enrollment method is currently known. The same locked-down case is tracked in [microsoft/secureboot_objects#422](https://github.com/microsoft/secureboot_objects/issues/422).
-
-The kernel, `systemd-boot` and EFI payloads produced by this repository carry no PE signatures. Keep Secure Boot disabled, including after firmware or Windows updates.
-
-## Getting started
-
-- Release: <https://github.com/zhzy0077/linux-gaokun-buildbot/releases>
-- Dual-boot guide: [English](docs/dual_boot_guide_en.md) | [中文](docs/dual_boot_guide_zh.md)
-- EL2 implementation notes: [English](docs/el2_kvm_guide_en.md) | [中文](docs/el2_kvm_guide_zh.md)
-- Awesome Gaokun3: [English](docs/awesome_gaokun3_en.md) | [中文](docs/awesome_gaokun3_zh.md)
-- Build guide – Fedora 44: [English](docs/matebook_ego_build_guide_fedora44_en.md) | [中文](docs/matebook_ego_build_guide_fedora44_zh.md)
-
-## Feature Support
-
-Touchscreen mode-selection fix and validation: [GPIO 174 notes (Chinese)](docs/touchscreen_spi_mode_zh.md).
-
-Opt-in QSEECOM fTPM validation and the EL2 fixed-memory sharing fix: [TPM notes (Chinese)](docs/tpm_qsee_zh.md).
-
-For an overview of hardware support status on the device, see [right-0903/linux-gaokun `## Feature Support`](https://github.com/right-0903/linux-gaokun?tab=readme-ov-file#feature-support).
-
-## References
-
-- [right-0903/linux-gaokun](https://github.com/right-0903/linux-gaokun) : The main source of the kernel patches and device support work, with detailed commit messages and explanations.
-- [TheUnknownThing/linux-gaokun](https://github.com/TheUnknownThing/linux-gaokun) : Another fork of the kernel patches and device support work, with some unique commits and explanations for Touchscreen and EC.
-- [whitelewi1-ctrl/matebook-e-go-linux](https://github.com/whitelewi1-ctrl/matebook-e-go-linux) : The earliest repo to fix panel backlight problem, with some additional resources and modifications for Gaokun3 Linux support.
-- [gaokun on AUR](https://aur.archlinux.org/packages?O=0&K=gaokun) : Several AUR packages built for Gaokun3, including kernel and firmware packages.
-- [chenxuecong2/firmware-huawei-gaokun3](https://github.com/chenxuecong2/firmware-huawei-gaokun3) : A firmware bundle repository for Gaokun3.
-- [chiyuki0325/EGoTouchRev-Linux](https://github.com/chiyuki0325/EGoTouchRev-Linux) : The upstream source for the directly integrated Himax HX83121A Linux touchscreen driver and tuning algorithm in this repository.
-- [awarson2233/EGoTouchRev](https://github.com/awarson2233/EGoTouchRev) : The original Windows-side touchscreen algorithm project referenced by EGoTouchRev-Linux, and an important upstream reference for the Gaokun3 touchscreen tuning pipeline.
-- [TravMurav/slbounce](https://github.com/TravMurav/slbounce) : A UEFI application that enables EL2 support and Secure Launch on Gaokun3.
-- [TravMurav/linux](https://github.com/TravMurav/linux/tree/x13s-6.18-v1.1-cxsd) : A Linux kernel tree with some useful patches for EL2 support on sc8280xp platforms.
-- [stephan-gh/qebspil](https://github.com/stephan-gh/qebspil) : A UEFI application that pre-launches the DSP firmware on Qualcomm platforms, which can be used in the boot chain before launching Linux.
+EL2 boot uses `slbounceaa64.efi`, `tcblaunch.exe` and [qebspil](https://github.com/stephan-gh/qebspil). qebspil loads DSP images from the EFI partition before Linux attaches to them. The firmware RPM synchronizes these images to a mounted, writable qebspil EFI partition; kernel setup provisions the initial boot files. Reboot after firmware updates.
