@@ -141,7 +141,7 @@ jobs:
             --user root \
             "fedora:44" \
             bash -euxo pipefail -c '
-              dnf -y install gcc make rpm-build kmod elfutils-libelf-devel tar gzip rsync systemd-rpm-macros alsa-ucm
+              dnf -y install gcc make rpm-build kmod elfutils-libelf-devel tar gzip rsync systemd-rpm-macros alsa-ucm python3
               chmod +x scripts/ci/70_build_package_rpms.sh
               scripts/ci/70_build_package_rpms.sh
             '
