@@ -34,8 +34,12 @@ def check(out, dtb_name, repo):
     if 'firmware_direct:bool' not in output('modinfo', '-F', 'parmtype', module).splitlines():
         raise ValueError('Iris module lacks the direct firmware boot option')
     aliases = output('modinfo', '-F', 'alias', module).splitlines()
-    if 'of:N*T*Cqcom,sc8280xp-iris' not in aliases:
-        raise ValueError('Built Iris module cannot bind the SC8280XP DT node')
+    # v7.3 binds SC8280XP through the DT's SM8250 fallback compatible.
+    matched = [compatible for compatible in actual['compatible'].split()
+               if any(f'of:N*T*C{compatible}{suffix}' in aliases
+                      for suffix in ('', 'C*'))]
+    if not matched:
+        raise ValueError(f'Built Iris module cannot bind the SC8280XP DT node: {aliases}')
     config = (out / '.config').read_text()
     for option in ('CONFIG_VIDEO_QCOM_IRIS=m', 'CONFIG_SM_VIDEOCC_8350=m'):
         if option not in config.splitlines():
@@ -48,6 +52,7 @@ def check(out, dtb_name, repo):
         raise ValueError('Iris module vermagic does not match the built kernel')
     return {'kernel_release': release, 'dtb': dtb_name, 'codec': actual,
             'firmware_iommu': fw_iommu,
+            'iris_matched_compatibles': matched,
             'iris_aliases': aliases, 'firmware_bytes': firmware.stat().st_size}
 
 
