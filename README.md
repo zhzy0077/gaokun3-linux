@@ -13,7 +13,7 @@ The reviewed kernel source is pinned in [kernel-source.env](kernel-source.env).
 
 ## Build and install
 
-For a new system starting from the official aarch64 ISO, follow the [fresh-install guide](docs/install-fedora.md).
+To adapt the official aarch64 ISO onto a bootable USB stick and install with Fedora's installer, follow the [fresh-install guide](docs/install-fedora.md).
 
 Run the **Build Package - RPMs Gaokun3** workflow in GitHub Actions to build Fedora packages. Select `build_el2` for the virtualization-enabled kernel used on this device. For a local kernel build, run `bash scripts/local/build_kernel.sh` on Fedora.
 
