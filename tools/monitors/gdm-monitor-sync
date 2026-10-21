@@ -7,7 +7,7 @@ set -euo pipefail
 SRC_MONITORS="${1:-/usr/local/share/gaokun/monitors.xml}"
 [[ -f "$SRC_MONITORS" ]] || exit 0
 
-for user in gdm Debian-gdm; do
+for user in gdm; do
   if account="$(getent passwd "$user")"; then
     IFS=: read -r _ _ uid gid _ user_home _ <<< "$account"
     [[ "$user_home" == /* && "$user_home" != / ]] || exit 1

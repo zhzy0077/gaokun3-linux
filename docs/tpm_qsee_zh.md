@@ -42,7 +42,6 @@ ACPI CRB 驱动的标准 SMC 方法 11 接入。
 
 ## 源码与打包
 
-- 驱动镜像：`drivers/tpm-qcom-qsee/tpm_qcom_qsee.c`
 - 内核补丁：`patches/others/0008-firmware-qcom-add-Gaokun-QSEE-TPM-validation.patch`
 - `defconfig/gaokun3_defconfig` 与 `0099` 补丁中的配置镜像同步启用：
 
@@ -69,7 +68,6 @@ SCM 删除接口释放 bridge。地址必须对齐、无溢出、完整落在固
 
 ```bash
 sudo modprobe tpm_qcom_qsee allow_probe=1
-sudo python3 -B tests/native_tpm_smoke.py
 ```
 
 执行前需确认测试入口保留 TPM provisioning/PCR 写入服务的屏蔽配置。当前实机入口已

@@ -111,7 +111,7 @@ if __name__ == '__main__':
     parser.add_argument('config', nargs='?', type=Path)
     parser.add_argument('fragments', nargs='*', type=Path)
     parser.add_argument('--repo', type=Path)
-    parser.add_argument('--distro', choices=['fedora', 'ubuntu'])
+    parser.add_argument('--distro', choices=['fedora'])
     parser.add_argument('--baseline', action='store_true')
     parser.add_argument('--audit', type=Path)
     parser.add_argument('--package', type=Path)

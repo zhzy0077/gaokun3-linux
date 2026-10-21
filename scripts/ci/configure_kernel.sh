@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Usage: configure_kernel.sh SOURCE OUTPUT {fedora|ubuntu} [LOCALVERSION]
+# Usage: configure_kernel.sh SOURCE OUTPUT fedora [LOCALVERSION]
 set -euo pipefail
 : "${GAOKUN_DIR:?missing GAOKUN_DIR}"
 src_dir=$(realpath "${1:?missing source}")
 out_dir=$(realpath -m "${2:?missing output}")
 distro=${3:?missing distro}
-case "$distro" in fedora|ubuntu) ;; *) echo "Unsupported kernel distro: $distro" >&2; exit 1 ;; esac
+case "$distro" in fedora) ;; *) echo "Unsupported kernel distro: $distro" >&2; exit 1 ;; esac
 case ${4:-} in ''|-gaokun3) el2=false ;; -gaokun3-el2) el2=true ;; *) echo 'Unsupported kernel variant' >&2; exit 1 ;; esac
 mkdir -p "$out_dir"
 export ARCH=arm64

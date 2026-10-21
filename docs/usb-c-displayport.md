@@ -3,8 +3,7 @@
 The kernel RPM release **11** includes
 `patches/others/0004-usb-typec-ucsi-recover-Gaokun-initialization-and-DP.patch`.
 Both the CI and local build scripts apply it to the upstream UCSI driver.
-`drivers/gaokun-ec/ucsi_huawei_gaokun.c` is its source mirror; the patch-series
-regression test verifies byte-for-byte equality after application.
+The patch series is the maintained source of the driver changes.
 
 ## Failure and fix
 
@@ -95,7 +94,7 @@ cross-CRTC exclusion. The full standard/EL2 series applies to pristine Linux
 both USB-C ports, mirror/extended layouts, hotplug and suspend/resume.
 
 The source-only Mutter alternative remains documented in
-[`packaging/mutter/README.md`](../packaging/mutter/README.md) as reference; it
+[`packaging/mutter/README.md` (historical)](https://github.com/zhzy0077/linux-gaokun-buildbot/blob/01a369e/packaging/mutter/README.md) as reference; it
 is not applied by kernel/package workflows.
 
 ### Release-15: make the registered plane masks effective
@@ -145,12 +144,7 @@ payload are documented in [`tools/audio/dp-audio/README.md`](../tools/audio/dp-a
 
 ## Regression checks
 
-```sh
-python3 -m unittest discover -s tests -p test_ucsi_gaokun.py -v
-GAOKUN_KERNEL_SRC=/path/to/pristine/linux-7.2.9 \
-  python3 -m unittest discover -s tests -p test_kernel_patches.py -v
-python3 -m unittest discover -s tests
-```
+Historical test commands are available in the [pre-cleanup revision](https://github.com/zhzy0077/linux-gaokun-buildbot/tree/01a369e/tests).
 
 The native C harness executes the driver's apply/sync/registration workers,
 covering a preconnected monitor absent from the update mask, early events,

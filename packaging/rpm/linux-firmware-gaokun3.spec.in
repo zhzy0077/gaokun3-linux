@@ -1,13 +1,16 @@
 %global debug_package %{nil}
 %global _debugsource_packages 0
+# Preserve vendor firmware bytes, including ELF metadata.
+%global __os_install_post %{nil}
 
 Name:           linux-firmware-gaokun3
 Version:        @FW_VERSION@
-Release:        3%{?dist}
+Release:        5%{?dist}
 Summary:        Firmware bundle for gaokun3
 License:        Redistributable, no modification permitted
 BuildArch:      noarch
 Source0:        @SOURCE_NAME@
+Requires(posttrans): coreutils util-linux
 Conflicts:      atheros-firmware qcom-firmware
 Obsoletes:      atheros-firmware qcom-firmware
 
@@ -24,12 +27,41 @@ tar -xzf %{SOURCE0}
 mkdir -p %{buildroot}
 cp -a usr %{buildroot}/
 
+# qebspil starts the DSPs from the ESP before Linux takes over.
+%posttrans
+if [ -f /boot/efi/EFI/systemd/drivers/qebspilaa64.efi ] && \
+   findmnt -rn --mountpoint /boot/efi --types vfat --options rw >/dev/null; then
+    for name in qcadsp8280.mbn qccdsp8280.mbn qcslpi8280.mbn; do
+        source=/usr/lib/firmware/qcom/sc8280xp/HUAWEI/gaokun3/$name
+        target=/boot/efi/firmware/qcom/sc8280xp/HUAWEI/gaokun3/$name
+        cmp -s "$source" "$target" && continue
+        mkdir -p "$(dirname "$target")" || exit 1
+        temporary=$(mktemp "${target}.XXXXXX") || exit 1
+        if cp "$source" "$temporary" && cmp -s "$source" "$temporary" && \
+           sync "$temporary" && mv -f "$temporary" "$target"; then
+            sync "$target" || exit 1
+        else
+            rm -f "$temporary"
+            echo "Gaokun: failed to update ESP firmware $name; check free space." >&2
+            exit 1
+        fi
+    done
+fi
+
 %files
 /usr/lib/firmware/ath11k/*
 /usr/lib/firmware/qca/*
 /usr/lib/firmware/qcom/*
 
 %changelog
+* Wed Oct 21 2026 Gaokun buildbot - @FW_VERSION@-5
+- Synchronize DSP firmware to mounted qebspil ESP after firmware updates
+
+* Wed Oct 21 2026 Gaokun buildbot - @FW_VERSION@-4
+- Refresh Wi-Fi boards, NFA765, Bluetooth hp firmware and AudioReach topology
+- Update Gaokun ADSP from Windows driver bundle 200.0.10.0
+- Preserve firmware bytes by disabling RPM binary post-processing
+
 * Sat Oct 10 2026 Gaokun buildbot - @FW_VERSION@-3
 - Add upstream WCN6855 non-g UART NVM and its redistribution notices
 

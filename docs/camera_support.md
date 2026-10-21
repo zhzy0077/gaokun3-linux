@@ -122,11 +122,7 @@ frames; Vahiru carries additional libcamera helper/tuning changes.
 
 ## Automated checks
 
-```sh
-python3 -m unittest discover -s tests -p 'test_camera_support.py' -v
-GAOKUN_KERNEL_SRC=/path/to/pristine/linux-7.2.9 \
-  python3 -m unittest discover -s tests -p 'test_kernel_patches.py' -v
-```
+Historical test commands are available in the [pre-cleanup revision](https://github.com/zhzy0077/linux-gaokun-buildbot/tree/01a369e/tests).
 
 Camera tests cover wiring, graph connections, config/import synchronization,
 OF matching, board scoping and power-enable failure cleanup. A C compiler is

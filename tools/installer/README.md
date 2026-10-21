@@ -91,12 +91,7 @@ profiles are not inherited and target SSH remains disabled.
 
 ## Validation
 
-```bash
-GAOKUN_KERNEL_SRC=/path/to/pristine-linux-7.2.9 \
-GAOKUN_UPSTREAM_DTS=/path/to/pristine-linux-7.2.9/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts \
-GAOKUN_UPSTREAM_CPUINFO=/path/to/pristine-linux-7.2.9/arch/arm64/kernel/cpuinfo.c \
-python3 -B -m unittest discover -s tests -v
-```
+Historical test commands are available in the [pre-cleanup revision](https://github.com/zhzy0077/linux-gaokun-buildbot/tree/01a369e/tests).
 
 The builder validates the rendered Fedora 44 Kickstart and the target package solve.
 Post-install validation checks the selected root/LUKS arguments, kernel/DTB hashes,

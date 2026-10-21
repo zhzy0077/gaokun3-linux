@@ -35,11 +35,8 @@ real-libasound `compound type expected for the merged block` / `-EINVAL`
 import failure on the original boot, leaving ACP without HiFi and selecting
 off. The direct include fixes both the private and stock UCM trees.
 
-Run `python3 tests/native_ucm_boot_models.py` on the hardware to parse both
-selector branches against both UCM trees. This uses disposable selectors and
-the real libasound without enabling verbs. Follow with
-`python3 tests/native_audio_smoke.py` on the original boot to verify hardware
-PCM playback; audible output remains a separate check.
+Historical UCM selector and PCM playback checks are preserved in the
+[pre-cleanup revision](https://github.com/zhzy0077/linux-gaokun-buildbot/tree/01a369e/tests).
 
 The original HiFi profile exposes internal audio only. A DP backend can reject
 PCM preparation before ELD becomes valid, so each DP has a separate profile.

@@ -19,9 +19,7 @@
 
 现有 CI 和本地构建脚本会自动应用 `patches/others/*.patch`，无需修改构建脚本；标准与 EL2 构建均包含此补丁。
 
-```sh
-python3 -m unittest discover -s tests -p test_speaker_gain.py -v
-```
+测试脚本已移除，历史验证入口见[清理前版本](https://github.com/zhzy0077/linux-gaokun-buildbot/tree/01a369e/tests)。
 
 测试从补丁提取实际 C 函数并编译，遍历全部 65536 个增益值、8 个 graph 和目标/非目标设备，验证倍率、范围限制、静音和路径隔离。
 

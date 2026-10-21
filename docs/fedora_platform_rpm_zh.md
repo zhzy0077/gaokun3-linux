@@ -12,7 +12,7 @@ Gaokun 板级补丁负责 GPIO174 的触屏 SPI 模式和原生 ARM64 的 CPU �
 GPU 固件由内核 RPM 的 dracut 配置显式收集。
 内核 RPM Release 10 包含默认关闭探测的 QSEECOM fTPM 验证模块，保留命令白名单；
 适用范围与验证状态见 [TPM 支持记录](tpm_qsee_zh.md)。
-编译前从发行版默认配置叠加 Gaokun 必需覆盖，见 [Fedora / Ubuntu 内核配置](kernel_distro_config_zh.md)。
+编译前从发行版默认配置叠加 Gaokun 必需覆盖，见 [Fedora 内核配置](kernel_distro_config_zh.md)。
 
 [Anaconda 安装流程](../tools/installer/README.md)负责 LUKS、Btrfs、共享 ESP、
 目标 UUID 和 systemd-boot。GPIO 的实现与验证方法见[触屏说明](touchscreen_spi_mode_zh.md)。
@@ -31,7 +31,7 @@ GPU 固件由内核 RPM 的 dracut 配置显式收集。
 | 音频 UCM | `/usr/share/gaokun3/ucm2/`，供 PipeWire 和 WirePlumber 使用 |
 
 系统级 XDG 显示默认值覆盖 GNOME 的临时登录/初始设置账户，用户配置优先。
-GDM helper 兼容静态 `gdm` / `Debian-gdm` home，保留已有配置；安装包不会重启 GDM。
+GDM helper 兼容静态 `gdm` home，保留已有配置；安装包不会重启 GDM。
 
 蓝牙 helper 根据本机标识生成稳定地址，在 `hci_uart` 的 modprobe hook 中先准备 NVM，
 再加载驱动。更新使用原子替换并保留原始备份，避免连带修改其他硬链接固件。
@@ -76,21 +76,7 @@ bash scripts/ci/71_build_platform_rpm.sh
 
 ## 验证
 
-在仓库根目录运行；指定原版内核文件可同时验证补丁应用和 CPU 名称输出：
-
-```bash
-GAOKUN_UPSTREAM_DTS=/path/to/linux/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts \
-GAOKUN_UPSTREAM_CPUINFO=/path/to/linux/arch/arm64/kernel/cpuinfo.c \
-python3 -B -m unittest discover -s tests -v
-```
-
-C 测试需要编译器。Gaokun 上的附加检查：
-
-```bash
-python3 -B tests/native_platform_smoke.py /path/to/extracted-rpms
-python3 -B tests/native_monitor_defaults.py
-python3 -B tests/native_audio_smoke.py
-```
+测试脚本已移除，历史验证入口见[清理前版本](https://github.com/zhzy0077/linux-gaokun-buildbot/tree/01a369e/tests)。
 
 显示测试使用独立的 Mutter 配置和虚拟显示；音频测试播放两秒静音并检查硬件 PCM 状态。
 已实机验证 NVMe 加密启动、GNOME 登录与横屏、CPU 产品名、GPU 加速、防火墙启动、

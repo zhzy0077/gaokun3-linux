@@ -38,7 +38,6 @@ GPIO 控制器通过 `&tlmm` 引用，不能把某次启动中的 `/dev/gpiochip
 
 修复同步保存在：
 
-- `drivers/touchscreen-hx83121a/himax-spi-core.c`
 - `dts/sc8280xp-huawei-gaokun3.dts`
 - `patches/others/0003-Input-touchscreen-add-Himax-HX83121A-SPI-driver.patch`
 - `patches/0099-arm64-gaokun3-import-local-dts-and-defconfig.patch`
@@ -47,11 +46,7 @@ CI 从补丁集构建内核，因此源码镜像与补丁都需要同步。
 
 ## 验证
 
-在仓库根目录运行：
-
-```bash
-python3 -B -m unittest discover -s tests -v
-```
+测试脚本已移除，历史验证入口见[清理前版本](https://github.com/zhzy0077/linux-gaokun-buildbot/tree/01a369e/tests)。
 
 `test_gpio174_spi_mode.py` 检查：
 

@@ -4,8 +4,8 @@ set -euo pipefail
 : "${GAOKUN_DIR:?missing GAOKUN_DIR}"
 : "${WORKDIR:?missing WORKDIR}"
 : "${KERN_SRC:?missing KERN_SRC}"
-: "${KERNEL_DISTRO:?set KERNEL_DISTRO to fedora or ubuntu}"
-case "$KERNEL_DISTRO" in fedora|ubuntu) ;; *) echo "Invalid KERNEL_DISTRO" >&2; exit 1 ;; esac
+: "${KERNEL_DISTRO:?set KERNEL_DISTRO to fedora}"
+case "$KERNEL_DISTRO" in fedora) ;; *) echo "Invalid KERNEL_DISTRO" >&2; exit 1 ;; esac
 
 source "$GAOKUN_DIR/scripts/ci/lib/kernel_package.sh"
 

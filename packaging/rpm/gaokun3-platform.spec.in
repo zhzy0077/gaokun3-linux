@@ -51,7 +51,7 @@ done
 for source in tools/image-assets/etc/modprobe.d/*.conf; do
     install -Dm644 "$source" "%{buildroot}%{_prefix}/lib/modprobe.d/gaokun3-$(basename "$source")"
 done
-# Fedora-specific policy stays out of the assets shared with Ubuntu images.
+# Install Fedora platform policy alongside the shared image assets.
 install -Dm644 tools/audio/dist-alsa.conf %{buildroot}%{_sysconfdir}/modprobe.d/dist-alsa.conf
 install -Dm644 tools/bluetooth/bluetooth-nvm.conf %{buildroot}%{_prefix}/lib/modprobe.d/gaokun3-bluetooth-nvm.conf
 sed -i "s|/usr/local/bin/patch-nvm-bdaddr.py|%{_libexecdir}/gaokun3/patch-nvm-bdaddr.py|g" \
