@@ -1,0 +1,344 @@
+{
+  "kernel_tag": "v7.3",
+  "kernel_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
+  "reference": "https://github.com/right-0903/linux-gaokun",
+  "reference_commit": "7463df37160bdecc3f2609d72f9a69cfa2b390e4",
+  "patch_sets": [
+    "recommended",
+    "el2"
+  ],
+  "patches": [
+    {
+      "patch": "patch sets/recommended/0002-arm64-dts-qcom-sc8280xp-Add-memory-region-for-audio-.patch",
+      "status": "ported-to-v7.3",
+      "port_log": "patching file arch/arm64/boot/dts/qcom/sc8280xp.dtsi\nHunk #1 FAILED at 12.\nHunk #2 succeeded at 626 (offset -57 lines).\n1 out of 3 hunks FAILED -- saving rejects to file arch/arm64/boot/dts/qcom/sc8280xp.dtsi.rej\n",
+      "sha256": "1d4a6971c43e5f6ca43d6d6c122c9848e4262fcb95402dba7b105d09b4625b0e"
+    },
+    {
+      "patch": "patch sets/recommended/0005-arm64-dts-qcom-sc8280xp-add-MDSS-registers-interconn.patch",
+      "status": "applied",
+      "sha256": "a0302c1fb1283b40cbd5f7f9d6fc56bddf78d1598bb0901fb463a4379adac5aa"
+    },
+    {
+      "patch": "patch sets/recommended/0010-drm-msm-dpu-encoder-fix-DSC-width-truncation.patch",
+      "status": "applied",
+      "sha256": "5534de0433c623244b97ed412c44b863b035ae691faad338d5ae464fa6f7745d"
+    },
+    {
+      "patch": "patch sets/recommended/0012-platform-arm64-huawei-gaokun-ec-fix-suspend-resume.patch",
+      "status": "applied",
+      "sha256": "0ce7f81cd63aaaa2e5dd92ec65babdcdc2d72a5ed7e530f434deecab8d0fc22f"
+    },
+    {
+      "patch": "patch sets/recommended/0014-drm-msm-dsi-avoid-link-clock-toggles-during-active-v.patch",
+      "status": "applied",
+      "sha256": "653993cbb5d83ece011360cc71b4ad4c7d0f3f3efe8af415b933bea59e444a60"
+    },
+    {
+      "patch": "patch sets/recommended/0015-power-supply-gaokun-fix-battery-_STA-handling.patch",
+      "status": "applied",
+      "sha256": "b47452aa4187ea748a4a1a04943eedc1ad85a14ff195fec97ff6b5d41e5f0b64"
+    },
+    {
+      "patch": "patch sets/recommended/0016-platform-arm64-huawei-gaokun-ec-introduce-EC-enable-.patch",
+      "status": "applied",
+      "sha256": "5839ab1afb03cbf014a59e4a8f2cd6accd1a9e30787545fb2eca7e5c465ee854"
+    },
+    {
+      "patch": "patch sets/recommended/0018-HACK-pinctrl-qcom-sc8280xp-do-not-map-gpio175-to-pdc.patch",
+      "status": "applied",
+      "sha256": "927a01d68e97eb9dbcd6629257a6a72e92aac302be36dc81b324d244367b79c7"
+    },
+    {
+      "patch": "patch sets/recommended/0019-arm64-dts-qcom-sc8208xp-move-dsi1_phy-before-dsi1.patch",
+      "status": "applied",
+      "sha256": "8ed9992ade3a44a2476265856f9d6ab4363a9e7c7f4f8889aba57ceadb7017a3"
+    },
+    {
+      "patch": "patch sets/recommended/0020-media-hi846-fix-hi846_write_reg_16-handling.patch",
+      "status": "applied",
+      "sha256": "0febdb3b8e3156db5d5bf0b159503703df1f2268f5da824214aa648b0eeecdea"
+    },
+    {
+      "patch": "patch sets/recommended/0021-media-hi846-fix-link-frequency-handling.patch",
+      "status": "applied",
+      "sha256": "72a419ddaacd1ad0ba2d634c774118d02fa884fd6f164d8ab28cafa9b92f8293"
+    },
+    {
+      "patch": "patch sets/recommended/0022-media-hi846-Add-6MP-and-8MP-modes-support.patch",
+      "status": "applied",
+      "sha256": "e61162be7872e5f937697cc1b903a03f5bbab87a8b77cf31308b7a54e81c1eee"
+    },
+    {
+      "patch": "patch sets/recommended/0023-media-hi846-fix-modes-handling-for-different-lane-ca.patch",
+      "status": "applied",
+      "sha256": "a1a443a36dc293699437410bf66c653017d54abaf5d99cd40a0dc4b65423113d"
+    },
+    {
+      "patch": "patch sets/recommended/0025-spi-qcom-geni-Add-property-to-force-GSI-mode.patch",
+      "status": "applied",
+      "sha256": "182b460cc912bc8a501912c4a4d87dd3e13e04dc6d3674a821779e97a38a3d09"
+    },
+    {
+      "patch": "patch sets/el2/0001-soc-qcom-smp2p-Kick-after-requesting-interrupt.patch",
+      "status": "applied-context",
+      "port_log": "patching file drivers/soc/qcom/smp2p.c\nHunk #1 succeeded at 712 with fuzz 2 (offset 94 lines).\nHunk #2 succeeded at 721 (offset 94 lines).\n",
+      "sha256": "0ccd119adae8c0c5bbc9435af1904ab1c8837a7bc87f34d9fd36e7c6c2858659"
+    },
+    {
+      "patch": "patch sets/el2/0002-soc-qcom-smp2p-Ensure-there-is-enough-space-for-outb.patch",
+      "status": "applied",
+      "sha256": "8a819f1c8a472a7b6a401c47d05246c3652acb41b2d7d34d1a2c41b38eeb1e9c"
+    },
+    {
+      "patch": "patch sets/el2/0003-soc-qcom-smp2p-Use-length-limited-strncmp-for-compar.patch",
+      "status": "applied",
+      "sha256": "1511da6b86128f72929ebe7e6dfb518a273e7bb894ef0bd38c7c63a5454f8503"
+    },
+    {
+      "patch": "patch sets/el2/0004-soc-qcom-smp2p-Drop-redundant-stack-copies-of-entry-.patch",
+      "status": "applied",
+      "sha256": "a8158b5e3590bdb88a6bc2901982d65492d7aeb6ef99f2773995a4dc68684dbd"
+    },
+    {
+      "patch": "patch sets/el2/0005-soc-qcom-smp2p-Take-over-outgoing-SMEM-items-from-bo.patch",
+      "status": "applied-context",
+      "port_log": "patching file drivers/soc/qcom/smp2p.c\nHunk #1 succeeded at 215 (offset 13 lines).\nHunk #2 succeeded at 225 (offset 13 lines).\nHunk #3 succeeded at 337 (offset 63 lines).\nHunk #4 succeeded at 371 (offset 63 lines).\nHunk #5 succeeded at 387 (offset 63 lines).\nHunk #6 succeeded at 528 (offset 82 lines).\nHunk #7 succeeded at 575 (offset 83 lines).\nHunk #8 succeeded at 624 (offset 92 lines).\nHunk #9 succeeded at 663 (offset 92 lines).\nHunk #10 succeeded at 714 (offset 92 lines).\nHunk #11 succeeded at 754 with fuzz 2 (offset 95 lines).\n",
+      "sha256": "2448c4ad556bda4d07eb16ed8e3d1af4a0797a29a00d9650675d49e6e1300e5c"
+    },
+    {
+      "patch": "patch sets/el2/0006-soc-qcom-smp2p-Add-support-for-irq_get_irqchip_state.patch",
+      "status": "upstream-covered",
+      "note": "Upstream irq_get_irqchip_state implementation retained, including -ENODEV on missing mapping.",
+      "sha256": "fd88853432b7f66216d1d2bab5aa4592ac94dabef522c095a300f4357f18a41d"
+    },
+    {
+      "patch": "patch sets/el2/0007-remoteproc-core-Allow-restarting-detached-remoteproc.patch",
+      "status": "ported-to-v7.3",
+      "port_log": "patching file drivers/remoteproc/imx_dsp_rproc.c\nHunk #1 succeeded at 1151 (offset -25 lines).\npatching file drivers/remoteproc/imx_rproc.c\nHunk #1 succeeded at 1312 (offset 28 lines).\npatching file drivers/remoteproc/ingenic_rproc.c\npatching file drivers/remoteproc/pru_rproc.c\nHunk #1 succeeded at 1029 (offset -2 lines).\npatching file drivers/remoteproc/qcom_q6v5_adsp.c\nHunk #1 succeeded at 674 (offset 1 line).\npatching file drivers/remoteproc/qcom_q6v5_mss.c\nHunk #1 succeeded at 2106 (offset 49 lines).\npatching file drivers/remoteproc/qcom_q6v5_pas.c\nHunk #1 succeeded at 860 (offset 86 lines).\npatching file drivers/remoteproc/rcar_rproc.c\nHunk #1 succeeded at 139 (offset -33 lines).\npatching file drivers/remoteproc/remoteproc_core.c\nHunk #1 FAILED at 1683.\nHunk #2 succeeded at 1713 (offset 5 lines).\nHunk #3 succeeded at 1732 (offset 5 lines).\nHunk #4 succeeded at 1933 (offset 28 lines).\nHunk #5 succeeded at 1962 (offset 28 lines).\nHunk #6 succeeded at 1982 (offset 28 lines).\nHunk #7 succeeded at 2312 (offset 37 lines).\nHunk #8 succeeded at 2528 (offset 38 lines).\n1 out of 8 hunks FAILED -- saving rejects to file drivers/remoteproc/remoteproc_core.c.rej\npatching file drivers/remoteproc/stm32_rproc.c\nHunk #1 succeeded at 666 (offset -30 lines).\nHunk #2 succeeded at 747 (offset -31 lines).\npatching file drivers/remoteproc/wkup_m3_rproc.c\npatching file drivers/remoteproc/xlnx_r5_remoteproc.c\nHunk #1 FAILED at 925.\n1 out of 1 hunk FAILED -- saving rejects to file drivers/remoteproc/xlnx_r5_remoteproc.c.rej\npatching file include/linux/remoteproc.h\nHunk #1 succeeded at 208 (offset -295 lines).\nHunk #2 succeeded at 310 with fuzz 2 (offset -288 lines).\n",
+      "sha256": "373981904cdb2a2eee6b60d89f5fd7f26727d71237fd046fe08e4fdb8facdb92"
+    },
+    {
+      "patch": "patch sets/el2/0008-remoteproc-qcom_q6v5-Allow-detecting-detached-state-.patch",
+      "status": "applied",
+      "sha256": "d36f5a4feee8ccb59814db2d9a48279f224289fc92c3df4943f29e3c9c277012"
+    },
+    {
+      "patch": "patch sets/el2/0009-remoteproc-qcom_q6v5-Add-qcom_q6v5_attach.patch",
+      "status": "ported-to-v7.3",
+      "port_log": "patching file drivers/remoteproc/qcom_q6v5.c\nHunk #1 succeeded at 70 with fuzz 1 (offset 34 lines).\nHunk #2 FAILED at 71.\n1 out of 2 hunks FAILED -- saving rejects to file drivers/remoteproc/qcom_q6v5.c.rej\npatching file drivers/remoteproc/qcom_q6v5.h\nHunk #1 succeeded at 54 (offset 4 lines).\n",
+      "sha256": "445e43c16038f2a5e44cce3d2b7056245ad21d6b5876d21be7c698ab32ef62b6"
+    },
+    {
+      "patch": "patch sets/el2/0010-remoteproc-qcom_q6v5-Send-SMP2P-stop-signal-in-attac.patch",
+      "status": "upstream-covered",
+      "port_log": "patching file drivers/remoteproc/qcom_q6v5.c\nHunk #1 FAILED at 231.\n1 out of 1 hunk FAILED -- saving rejects to file drivers/remoteproc/qcom_q6v5.c.rej\n",
+      "sha256": "bf2ac3a010d8845f4b8654c7b49cf45962dcc65391def4a2739a7c0948a8eeaf",
+      "note": "v7.3 stop uses q6v5->running and handles attached processors; retained upstream logical-crash handling."
+    },
+    {
+      "patch": "patch sets/el2/0011-remoteproc-qcom_q6v5_pas-Attach-running-remoteproc-i.patch",
+      "status": "ported-to-v7.3",
+      "port_log": "patching file drivers/remoteproc/qcom_q6v5_pas.c\nHunk #1 FAILED at 227.\nHunk #2 succeeded at 401 (offset 5 lines).\nHunk #3 FAILED at 428.\nHunk #4 FAILED at 436.\nHunk #5 succeeded at 454 (offset 9 lines).\nHunk #6 succeeded at 466 (offset 9 lines).\nHunk #7 succeeded at 626 (offset 81 lines).\nHunk #8 succeeded at 639 (offset 83 lines).\nHunk #9 succeeded at 894 (offset 86 lines).\nHunk #10 succeeded at 949 (offset 86 lines).\n3 out of 10 hunks FAILED -- saving rejects to file drivers/remoteproc/qcom_q6v5_pas.c.rej\n",
+      "sha256": "d3a8b7e09af0b00ab4248a2eb854f8246283c4780b688b88ec34d35d1e89adb3"
+    },
+    {
+      "patch": "patch sets/el2/0012-dt-bindings-firmware-qcom-scm-Add-qcom-shm-bridge-vm.patch",
+      "status": "applied-context",
+      "port_log": "patching file Documentation/devicetree/bindings/firmware/qcom,scm.yaml\nHunk #1 succeeded at 115 (offset 7 lines).\npatching file include/dt-bindings/firmware/qcom,scm.h\nHunk #1 succeeded at 37 with fuzz 2 (offset 1 line).\n",
+      "sha256": "9b93d1be3cdded3013865ad2c60a70d29ac456bfb9b355a29e81ce6bddfb4fbc"
+    },
+    {
+      "patch": "patch sets/el2/0013-wip-firmware-qcom-tzmem-Use-self-owner-bits-when-run.patch",
+      "status": "applied",
+      "sha256": "360ff4cabf0c836a962d962e874d5052e970dc34d3aa1099ab846890613dd7fe"
+    },
+    {
+      "patch": "patch sets/el2/0014-arm64-dts-qcom-sc7180-el2-Set-correct-owner-for-SCM-.patch",
+      "status": "applied",
+      "sha256": "14b8b932245cf477e916d57b090f944ec0d5cfedc7cdd5c954c32efe48ad8831"
+    },
+    {
+      "patch": "patch sets/el2/0015-arm64-dts-qcom-sc8280xp-el2-Set-correct-owner-for-SC.patch",
+      "status": "applied",
+      "sha256": "50affb3f240cb1cfa42f054e306c64f1aa32c086ae2d6353c03a7965799d1caf"
+    },
+    {
+      "patch": "patch sets/el2/0016-arm64-dts-qcom-x1-el2-Set-correct-owner-for-SCM-SHM-.patch",
+      "status": "applied",
+      "sha256": "7ada183fef8a5ccca1862abaf7813563cb4a9109a937d7ae8d4dc059c812e524"
+    },
+    {
+      "patch": "patch sets/el2/0017-wip-remoteproc-qcom_q6v5_pas-Avoid-using-broken-rese.patch",
+      "status": "ported-to-v7.3",
+      "port_log": "patching file drivers/remoteproc/qcom_q6v5_pas.c\nHunk #1 succeeded at 648 with fuzz 1 (offset 81 lines).\nHunk #2 succeeded at 892 (offset 83 lines).\nHunk #3 succeeded at 903 (offset 83 lines).\nHunk #4 succeeded at 971 (offset 83 lines).\nHunk #5 succeeded at 1013 (offset 77 lines).\nHunk #6 succeeded at 1021 (offset 77 lines).\nHunk #7 succeeded at 1033 with fuzz 2 (offset 80 lines).\n",
+      "sha256": "51440cc56bfd923815e571b4e5e9bd78a5ecfba6e9d9022a6018b17629a95755"
+    },
+    {
+      "patch": "patch sets/el2/0018-arm64-dts-qcom-sc7180-el2-Add-qcom-broken-reset-wher.patch",
+      "status": "applied",
+      "sha256": "dda2fbd96e378f49185edf51482ebe72387f58acca10bc42adfbfc9ecad1f7e3"
+    },
+    {
+      "patch": "patch sets/el2/0019-arm64-dts-qcom-sc8280xp-el2-Add-qcom-broken-reset-fo.patch",
+      "status": "applied",
+      "sha256": "8e17f207f35904824a3cc787603d1cd9208870be376b038650306a06563361ea"
+    },
+    {
+      "patch": "patch sets/el2/0020-arm64-dts-qcom-x1-el2-Add-qcom-broken-reset-for-remo.patch",
+      "status": "applied-context",
+      "port_log": "patching file arch/arm64/boot/dts/qcom/x1-el2.dtso\nHunk #1 succeeded at 61 with fuzz 1 (offset 8 lines).\n",
+      "sha256": "05e95f52ca59000e41c83ed581af8771e515450a015868ef7cc1fb8a279f755d"
+    },
+    {
+      "patch": "patch sets/el2/0021-hack-soc-qcom-pmic_glink-Avoid-platform-rpmsg-probe-.patch",
+      "status": "applied-context",
+      "port_log": "patching file drivers/soc/qcom/pmic_glink.c\nHunk #1 succeeded at 355 with fuzz 2 (offset 6 lines).\nHunk #2 succeeded at 395 with fuzz 1 (offset 6 lines).\nHunk #3 succeeded at 431 (offset 18 lines).\n",
+      "sha256": "f84cf904cbc20f2802e4f8880c723ca54d9722090adc9b460f728a4d68c3b8cc"
+    },
+    {
+      "patch": "patch sets/el2/0022-rpmsg-core-Call-announce_destroy-only-after-announce.patch",
+      "status": "applied",
+      "sha256": "affe230b013966f32cd868d005ed80e60c72b24a99d53d9cc81ffd2b8bf7bb73"
+    },
+    {
+      "patch": "patch sets/el2/0023-rpmsg-core-Make-it-easier-to-manually-create-endpoin.patch",
+      "status": "ported-to-v7.3",
+      "port_log": "patching file drivers/rpmsg/rpmsg_core.c\nHunk #2 succeeded at 433 (offset -26 lines).\nHunk #3 succeeded at 471 (offset -26 lines).\nHunk #4 succeeded at 480 (offset -26 lines).\nHunk #5 succeeded at 493 (offset -26 lines).\nHunk #6 succeeded at 524 (offset -26 lines).\npatching file include/linux/rpmsg.h\nHunk #1 succeeded at 177 with fuzz 2 (offset -4 lines).\nHunk #2 FAILED at 251.\n1 out of 2 hunks FAILED -- saving rejects to file include/linux/rpmsg.h.rej\n",
+      "sha256": "60ddf10feb1e29046696b2e2d400e6b9354baa6ee8492728993e268d18959d83"
+    },
+    {
+      "patch": "patch sets/el2/0024-net-qrtr-smd-Fix-race-conditions-while-opening-closi.patch",
+      "status": "applied",
+      "sha256": "8b95edaa10d6428a5229047278b4d31463c114b0a7333e990511c937951b7901"
+    }
+  ],
+  "integration": [
+    "Reference DTS and SPI touchscreen driver",
+    "PCIe GPIO properties moved to port nodes for v7.3",
+    "Touchscreen Kconfig/Makefile registration",
+    "EL2 composite DTB build rule"
+  ],
+  "porting": [
+    "Retain v7.3 handover IRQ helper and asynchronous remoteproc attach",
+    "Adapt PAS shutdown helper names and preserve v7.3 attach state checks",
+    "Remoteproc auto_boot enum at moved declarations",
+    "RPMsg stub signature/context updates"
+  ],
+  "config_sha256": "dafaafc4283c3bf419ce2c2971d5216cdbee7b5d6dcc5f65d0aeb07070627b49",
+  "combined_patch_sha256": "e06b590e9d02270ffc3b7461a3b4c2a78e0daf2cd82663878a848fbebafdeaf5",
+  "source_postimages": {
+    "Documentation/devicetree/bindings/firmware/qcom,scm.yaml": "753f684ac4637c1d0c92af70d62bbb3342c1cdda7e516b71085ce2bd21c15c5d",
+    "arch/arm64/boot/dts/qcom/Makefile": "ef60312deca7c21d94c71cb51c1301c73a2b5edfeae0459919fa48aa7a4ea4c2",
+    "arch/arm64/boot/dts/qcom/sc7180-el2.dtso": "86aeb9ec84975e546584467fdea4ae2518266deb49399d2056df6ceac6f91cc0",
+    "arch/arm64/boot/dts/qcom/sc8280xp-el2.dtso": "dec269e22251ce5e18fddc714a8d18ff0a4af6df72805a75f207b0fd86c1a3c3",
+    "arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-camera.dtsi": "4789bf4d0083b0cf4a1145b50e572561fb734f3d82e9cc25c29eebd6c720f4bf",
+    "arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts": "5b40091c0889ce85c7a9c027dee36795a8a70642a9f8fca0ccd369e20c9b8d11",
+    "arch/arm64/boot/dts/qcom/sc8280xp.dtsi": "7706384e636d1794ba6ceb5f63993bc4d0d87e164acc814f3b0f87c840456e1d",
+    "arch/arm64/boot/dts/qcom/x1-el2.dtso": "8d4526b29ad51db600d7ad8b600c928047b6c70a554f41651336bd91e8f3599e",
+    "drivers/char/tpm/Kconfig": "b3317b743d41db05242a5127675598b99df68568f023da95a0c5a0879bf74fb1",
+    "drivers/char/tpm/Makefile": "747b62c51e7369e4375027a22925238cb489638daf497e4597d57c73bc07bcef",
+    "drivers/char/tpm/tpm_qcom_qsee.c": "1ff51a1fe94d52ba1a04f13a23d110f65b368d28b46bd7cdf237ca19940e50c4",
+    "drivers/clk/qcom/camcc-sc8280xp.c": "4334db5c6973aba99b660377a99d74c2b4b9551b509496610147621fd459d4f8",
+    "drivers/firmware/qcom/qcom_qseecom.c": "efe929b2fbbb3ec41e3b2864857542415ac2e56ed75dfdb25e0f9f2dc1ac8d9e",
+    "drivers/firmware/qcom/qcom_scm.c": "75a3dd923ef03382f35f6dcc0ca7bdcf63116dc58ea836a1d770d179c104d0cd",
+    "drivers/firmware/qcom/qcom_scm.h": "d9135f389655bc8462b2603cf1851598aff035ebcdd76a0e9584a1ee31ffeb7e",
+    "drivers/firmware/qcom/qcom_tzmem.c": "09d1f2acfadfab041863d5a918b2c677506da603353a2af1b58c112004f4ca7e",
+    "drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c": "829055c08dffa017999a0998ee3862da30bad5a4e8f84af2f6e77bac20c97b83",
+    "drivers/gpu/drm/msm/dsi/dsi_host.c": "12c66b58babd9c57e65132c09713fdde952682eb3be11a0e726244c59d27d34d",
+    "drivers/gpu/drm/msm/dsi/phy/dsi_phy.h": "11fe5c856ec083d3fd277a2eaa38244cb60fc8116848379ab3f3c7156a986f3b",
+    "drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c": "b9390355b88e50dd53ac5c151b68772cb258aa36b9a0671ff0cf86e23c0db2f3",
+    "drivers/input/touchscreen/Kconfig": "db29718f813061c72b985e7d1f160d6c0d6c9c25833942a179fbb075486cadd8",
+    "drivers/input/touchscreen/Makefile": "fa87dbb3c03a1922be25e76eea02af31719cd929ae4bce944efd067c08453278",
+    "drivers/input/touchscreen/himax-gaokun-right.c": "3c13d6efbcf11b0eb6d0c1cfd1a56c630d6577108a712a761fac09a563ea1b41",
+    "drivers/media/i2c/hi846.c": "99a2df84ca74741325324ad0c724c1ad915ade0ef5165731433e54c439dbfc9e",
+    "drivers/media/i2c/ov13b10.c": "1fa8cdc3e7630784466a89b7522873f4b69298546df120f7705d5c18afab43c6",
+    "drivers/media/platform/qcom/iris/iris_common.c": "cfab5872a8da653d79f3eda8ddf22a8624895d7ff63134eebc9d07a237dda59a",
+    "drivers/media/platform/qcom/iris/iris_core.c": "8406505200025b5b3c0c46bfbc959461db9bc0a5d4b7ffbe75c275f3ea78417a",
+    "drivers/media/platform/qcom/iris/iris_core.h": "2c83562bbcf474afa13760b177d8208bbf637566481a24252f1831b93ff97924",
+    "drivers/media/platform/qcom/iris/iris_firmware.c": "95e44b74b2ad3e067817b52253798a2f76dceb3620dba0bb57354f6ef27ca33d",
+    "drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c": "1bf1726de91ba33f70b37c83d307c2b8be4d15ac838cbc5acd1c997f241bcf65",
+    "drivers/media/platform/qcom/iris/iris_probe.c": "d03fc930f024f17009a795620905fd1e7403cd268bee196f39a0451a0415a24f",
+    "drivers/media/platform/qcom/iris/iris_vdec.c": "d3a9712a23e4c84b174a16a0117f34bee1d7fff67c5a6ca96e3f9f5a150aad4d",
+    "drivers/pinctrl/qcom/pinctrl-sc8280xp.c": "ea865a00147ae70583544e3635c506e952268e916039bd28ad0b3e7d164b7db2",
+    "drivers/platform/arm64/huawei-gaokun-ec.c": "a03bb73c7ade00789738c5aa62feddad57e6b6e5b53b20ae00bfc177f875f501",
+    "drivers/power/supply/huawei-gaokun-battery.c": "aa5a1f5975ddac2eab9e1762253baa96254a3959ae30d610e3ad69c58ff3ed05",
+    "drivers/remoteproc/imx_dsp_rproc.c": "a593faf3e49b274b166b30295ee43aa0d91710f7a6175bdd1ac26e78911f2a65",
+    "drivers/remoteproc/imx_rproc.c": "e2d47a16fdba5f8b697bf185d4e49cb985680510efdb150e8c540f760b34d0f7",
+    "drivers/remoteproc/ingenic_rproc.c": "338f5765b88163b51b4e53a5e54abf64a48320fbe780bd9101646979afc7618d",
+    "drivers/remoteproc/pru_rproc.c": "29808bfdfd0796f85cfd4017dcf1f0ab9f8163abb1b0fadc7d7f1679c1d4349d",
+    "drivers/remoteproc/qcom_q6v5.c": "16ed25e45e87d6399f2afe97893dd93b3be9863a897f03cd495e092629b52001",
+    "drivers/remoteproc/qcom_q6v5.h": "e1379bd655b195fbf6bac8181f714a403deb7022ec93ef9e9eecfb0615560c80",
+    "drivers/remoteproc/qcom_q6v5_adsp.c": "a9c2a41ff1f5f6abaddd3e63145f1c2f2df0c85f6a2fe42733aaaf1e7fe95ea4",
+    "drivers/remoteproc/qcom_q6v5_mss.c": "28dd8913a603bd41a72cca83a3274a3f7fd89b479e5988fc5b9b8cb29e38a208",
+    "drivers/remoteproc/qcom_q6v5_pas.c": "91c943439faaa631ae7a5b4b1921d307c296ed2ac210627df93f80811b9e70b4",
+    "drivers/remoteproc/qcom_sysmon.c": "1726dfc7413a95128086f3d3d5ee568ad3910f129ab246b862fefc3f1e6e2bf8",
+    "drivers/remoteproc/rcar_rproc.c": "1c4d7bd379c7e187987cb7fdce92762faa9d8173c986002c1f9852300786d180",
+    "drivers/remoteproc/remoteproc_core.c": "f9ad5e1a74c568c9c75f958f5095b567bb20315d8a9ca0a4844b4e4fa90d2f57",
+    "drivers/remoteproc/stm32_rproc.c": "d8ed46e352ac87d7d756b32b69ac51e70881953893743b7d97bdd7810790d89f",
+    "drivers/remoteproc/wkup_m3_rproc.c": "c5030e083987b56d90811170193cf0cf215c352ff005daf3cfd1c87940989124",
+    "drivers/remoteproc/xlnx_r5_remoteproc.c": "33bf8c1084af73bd67a6574d3d30d0bd73a2e7d58a64743546a66ef419eaafce",
+    "drivers/rpmsg/rpmsg_core.c": "e7f436754aead25131d84174c045e121d647d5459d7d289be63f03780998e45b",
+    "drivers/soc/qcom/pmic_glink.c": "606fcc0472e0a3bf880324f42e72ee7a7564df20190224cc0a2da0011885a52e",
+    "drivers/soc/qcom/smp2p.c": "2123cdb58c8183009124f95874355b608ee6bcef7f72d650718fefc7a040b4f7",
+    "drivers/spi/spi-geni-qcom.c": "dc2b780585ce0126aec2652211d62c7701c28ea865d0b8e4eddd489b0068e9c8",
+    "drivers/usb/typec/ucsi/ucsi_huawei_gaokun.c": "4c49ffb8eade8f46933b5cfda8a94b2ed7e1707ebc9abadeb93975772ef5dc2c",
+    "include/dt-bindings/firmware/qcom,scm.h": "dc7ac45166e14c8415d35fa113d36a6a0d6e43aba6f5f80a69e5abe712994b81",
+    "include/linux/firmware/qcom/qcom_scm.h": "01086dd61975101bda8c08f07bf5b634c3fd05418bc332edfdf551c6c53e9b79",
+    "include/linux/remoteproc.h": "7594293471f1e1ab019acd466a525a46d1f5c60883ffa1a18cb85c1a792878c8",
+    "include/linux/rpmsg.h": "77e4bd37ce2d298f501948b98074a39b047ad1a77318dfe56625b037f0b0e761",
+    "net/qrtr/smd.c": "a631fcc76911c77551464ea0c5901f383c195021e02716568eddffb42b895ae7"
+  },
+  "additional_patches": [
+    {
+      "path": "0007-drm-msm-dsi-restore-bonded-PLL-initialization.patch",
+      "sha256": "81695ac79166338b7e1db54493d4ddbcbf9ed52bf1cc1d797b4e97820e694af5",
+      "upstream_commit": "93c97bc8d85d",
+      "purpose": "Restore bonded DSI PLL initialization; user-requested sole addition"
+    },
+    {
+      "path": "patches/others/0004-usb-typec-ucsi-recover-Gaokun-initialization-and-DP.patch",
+      "sha256": "042448b688536415278594681e26d64fc9bfbb2891387ee4c87752fd8d79969f"
+    },
+    {
+      "path": "patches/others/0014-platform-arm64-gaokun-fix-UCSI-ACK-negative-shift.patch",
+      "sha256": "fd6bb618c510d8ec51c326c6139ccc927c9f25c49425e7119433fe8f44cb1afb"
+    },
+    {
+      "path": "patches/others/0008-firmware-qcom-add-Gaokun-QSEE-TPM-validation.patch",
+      "sha256": "c33ca793de1d09dbb49110c83c5ac1fe3628d4dbaea294d89ad5f4071bde7da4"
+    },
+    {
+      "path": "patches/others/0009-media-i2c-ov13b10-support-Gaokun-camera-power.patch",
+      "sha256": "98fb785fee400e1e3f2cec1ba2dd00963d9ed373a7e1aed0736af79f8e5e065c"
+    },
+    {
+      "path": "patches/others/0010-clk-qcom-camcc-sc8280xp-park-camera-clocks.patch",
+      "sha256": "4a940cfe783288d737e83c7da5d6d4efe4c836e0ffa139623952afd9d1966c03"
+    },
+    {
+      "path": "patches/media/0004-media-iris-Gaokun-EL2-firmware-and-restart.patch",
+      "sha256": "14e4502de791d87c862c24740752087a075d48b1971d3f218d4397c0446b1ad5"
+    },
+    {
+      "path": "patches/media/0005-media-iris-fix-decoder-metadata-EOS-and-restart.patch",
+      "sha256": "d4f43fce757b7f00484fda95fc28e366ce556cad9e740ac63fcfde11440f15f9"
+    }
+  ],
+  "combined_patch": "right-confirmed-fixes-v7.3.patch",
+  "confirmed_fixes": {
+    "manual_changes": [
+      "optional shutdown IRQ guard",
+      "EC/battery GPIO error returns",
+      "camera DT integration",
+      "Iris DT integration",
+      "Bluetooth DT address from installed NVM and vddrfa1p7 supply property"
+    ],
+    "boot_parameters": [
+      "panel_himax_hx83121a.enable_dsc=1",
+      "qcom_iris.firmware_direct=1",
+      "tpm_qcom_qsee.allow_probe=1"
+    ],
+    "baseline_backup": "before-confirmed-fixes"
+  }
+}

@@ -1,0 +1,6184 @@
+diff --git a/Documentation/devicetree/bindings/firmware/qcom,scm.yaml b/Documentation/devicetree/bindings/firmware/qcom,scm.yaml
+--- a/Documentation/devicetree/bindings/firmware/qcom,scm.yaml
++++ b/Documentation/devicetree/bindings/firmware/qcom,scm.yaml
+@@ -115,6 +115,14 @@
+       Phandle to the memory region reserved for the shared memory bridge to TZ.
+     maxItems: 1
+ 
++  qcom,shm-bridge-vmid:
++    $ref: /schemas/types.yaml#/definitions/uint32
++    description:
++      VMID to use as owner of shared memory bridge allocations for TZ.
++      QCOM_SCM_VMID_SELF_OWNER may be used to indicate that the allocations
++      should be self-owned rather than being assigned to a specific VMID.
++      Defaults to QCOM_SCM_VMID_HLOS if not specified.
++
+   qcom,sdi-enabled:
+     description:
+       Indicates that the SDI (Secure Debug Image) has been enabled by TZ
+diff --git a/arch/arm64/boot/dts/qcom/Makefile b/arch/arm64/boot/dts/qcom/Makefile
+--- a/arch/arm64/boot/dts/qcom/Makefile
++++ b/arch/arm64/boot/dts/qcom/Makefile
+@@ -473,3 +473,6 @@
+ dtb-$(CONFIG_ARCH_QCOM)	+= x1p64100-microsoft-denali.dtb x1p64100-microsoft-denali-el2.dtb
+ x1p42100-microsoft-sp12in-el2-dtbs	:= x1p42100-microsoft-sp12in.dtb x1-el2.dtbo
+ dtb-$(CONFIG_ARCH_QCOM)	+= x1p42100-microsoft-sp12in.dtb x1p42100-microsoft-sp12in-el2.dtb
++
++sc8280xp-huawei-gaokun3-el2-dtbs := sc8280xp-huawei-gaokun3.dtb sc8280xp-el2.dtbo
++dtb-$(CONFIG_ARCH_QCOM) += sc8280xp-huawei-gaokun3-el2.dtb
+diff --git a/arch/arm64/boot/dts/qcom/sc7180-el2.dtso b/arch/arm64/boot/dts/qcom/sc7180-el2.dtso
+--- a/arch/arm64/boot/dts/qcom/sc7180-el2.dtso
++++ b/arch/arm64/boot/dts/qcom/sc7180-el2.dtso
+@@ -1,4 +1,5 @@
+ // SPDX-License-Identifier: BSD-3-Clause
++#include <dt-bindings/firmware/qcom,scm.h>
+ 
+ /*
+  * sc7180 specific modifications required to boot in EL2.
+@@ -12,6 +13,18 @@
+ 	status = "disabled";
+ };
+ 
++&remoteproc_adsp {
++	qcom,broken-reset;
++};
++
++&remoteproc_mpss {
++	/* Reset is implemented in TZ firmware, so no qcom,broken-reset here */
++};
++
++&scm {
++	qcom,shm-bridge-vmid = <QCOM_SCM_VMID_SELF_OWNER>;
++};
++
+ /* Venus can be used in EL2 if booted similarly to ChromeOS devices. */
+ &venus {
+ 	video-firmware {
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-el2.dtso b/arch/arm64/boot/dts/qcom/sc8280xp-el2.dtso
+--- a/arch/arm64/boot/dts/qcom/sc8280xp-el2.dtso
++++ b/arch/arm64/boot/dts/qcom/sc8280xp-el2.dtso
+@@ -1,4 +1,5 @@
+ // SPDX-License-Identifier: BSD-3-Clause
++#include <dt-bindings/firmware/qcom,scm.h>
+ 
+ /*
+  * sc8280xp specific modifications required to boot in EL2.
+@@ -40,3 +41,23 @@
+ &pcie_smmu {
+ 	status = "okay";
+ };
++
++&remoteproc_adsp {
++	qcom,broken-reset;
++};
++
++&remoteproc_slpi {
++	qcom,broken-reset;
++};
++
++&remoteproc_nsp0 {
++	qcom,broken-reset;
++};
++
++&remoteproc_nsp1 {
++	qcom,broken-reset;
++};
++
++&scm {
++	qcom,shm-bridge-vmid = <QCOM_SCM_VMID_SELF_OWNER>;
++};
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-camera.dtsi b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-camera.dtsi
+new file mode 100644
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-camera.dtsi
+@@ -0,0 +1,309 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright (c) 2021, The Linux Foundation. All rights reserved.
++ */
++
++#include <dt-bindings/leds/common.h>
++
++/* remove due to gpio pins collision, skip 2nd instance won't break things */
++/delete-node/ &cci1_i2c1;
++/delete-node/ &cci1_i2c1_default;
++/delete-node/ &cci1_i2c1_sleep;
++
++/* override */
++/delete-node/ &vreg_l2b;
++
++/ {
++	aliases {
++		i2c1 = &cci1_i2c0;
++		i2c2 = &cci2_i2c1;
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		pinctrl-0 = <&cam_indicator_en>, <&camera_flash_en>;
++		pinctrl-names = "default";
++
++		privacy_led: privacy-led {
++			function = LED_FUNCTION_INDICATOR;
++			color = <LED_COLOR_ID_WHITE>;
++			gpios = <&tlmm 34 GPIO_ACTIVE_HIGH>;
++			default-state = "off";
++			panic-indicator;
++		};
++
++		camera_flash: led {
++			function = LED_FUNCTION_FLASH;
++			color = <LED_COLOR_ID_WHITE>;
++			gpios = <&tlmm 93 GPIO_ACTIVE_HIGH>;
++			linux,default-trigger = "none";
++			default-state = "off";
++		};
++	};
++
++	vreg_camf_1p2: regulator-camf-1p2 {
++		compatible = "regulator-fixed";
++
++		regulator-name = "vreg_camf_1p2";
++		regulator-min-microvolt = <1200000>;
++		regulator-max-microvolt = <1200000>;
++
++		gpio = <&tlmm 44 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++
++		pinctrl-0 = <&camf_1p2_reg_en>;
++		pinctrl-names = "default";
++	};
++
++	vreg_camr: regulator-camr {
++		compatible = "regulator-fixed";
++
++		regulator-name = "vreg_camr";
++		/* GPIO92 gates the rear sensor's board-provided core supply. */
++		regulator-min-microvolt = <1200000>;
++		regulator-max-microvolt = <1200000>;
++
++		gpio = <&tlmm 92 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++
++		pinctrl-0 = <&camr_reg_en>;
++		pinctrl-names = "default";
++	};
++};
++
++&apps_rsc {
++	regulators-0 {
++		vreg_l2b: ldo2 {
++			regulator-name = "vreg_l2b";
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <2800000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l7b: ldo7 {
++			regulator-name = "vreg_l7b";
++			regulator-min-microvolt = <2800000>;
++			regulator-max-microvolt = <2800000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++	};
++
++	regulators-1 {
++		vreg_l2c: ldo2 {
++			regulator-name = "vreg_l2c";
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++			/* may be used in audio codec driver (ACD) too */
++			// regulator-allow-set-load;
++			// regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
++			// 			   RPMH_REGULATOR_MODE_HPM>;
++			regulator-always-on;
++		};
++
++		vreg_l11c: ldo11 {
++			regulator-name = "vreg_l11c";
++			regulator-min-microvolt = <2800000>;
++			regulator-max-microvolt = <2800000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++	};
++};
++
++&camss {
++	/*
++	 * CSIPHY0, CSIPHY1 1.2v = l4d, 0.88v = l6d
++	 * CSIPHY2, CSIPHY3 1.2v = l3b, 0.88v = l6b
++	 *
++	 * drivers/media/platform/qcom/camss/camss.c
++	 */
++
++	vdda-phy-supply = <&vreg_l6b>;
++	vdda-pll-supply = <&vreg_l3b>;
++
++	status = "okay";
++
++	ports {
++		port@0 {
++			csiphy0_ep: endpoint@0 {
++				reg = <0>;
++
++				clock-lanes = <7>;
++				data-lanes = <0 1 2 3>;
++				remote-endpoint = <&ov13b10_ep>;
++			};
++		};
++
++		port@3 {
++			csiphy3_ep: endpoint@0 {
++				reg = <0>;
++
++				clock-lanes = <7>;
++				data-lanes = <0 1 2 3>;
++				remote-endpoint = <&hi846_ep>;
++			};
++		};
++	};
++};
++
++&cci1 {
++	status = "okay";
++};
++
++&cci1_i2c0 {
++	voice_coil_motor: vcm@c {
++		compatible = "dongwoon,dw9714";
++		reg = <0xc>;
++		vcc-supply = <&vreg_l7b>; /* FIXME: require l2c on first */
++	};
++
++	/*
++	 * OV13B10 variant: Windows CAMS_RES_QRD.bin specifies L2B 2.8V,
++	 * L2C 1.8V, GPIO92 core enable, GPIO7 reset and MCLK4.
++	 * L2B is shared with display VDDI; the sensor driver votes 2.8V
++	 * while powered. The upstream sensor register tables use 19.2MHz.
++	 * See docs/camera_support.md for module identification and testing.
++	 */
++	camera_rear: camera@36 {
++		compatible = "ovti,ov13b10";
++		reg = <0x36>;
++
++		pinctrl-0 = <&camr_rgb_default>;
++		pinctrl-names = "default";
++
++		clocks = <&camcc CAMCC_MCLK4_CLK>;
++		assigned-clocks = <&camcc CAMCC_MCLK4_CLK>;
++		assigned-clock-rates = <19200000>;
++
++		reset-gpios = <&tlmm 7 GPIO_ACTIVE_LOW>;
++
++		avdd-supply = <&vreg_l2b>;
++		dovdd-supply = <&vreg_l2c>;
++		dvdd-supply = <&vreg_camr>;
++
++		leds = <&privacy_led>; // &camera_flash can't be enabled for now
++		led-names = "privacy";
++
++		lens-focus = <&voice_coil_motor>;
++
++		orientation = <1>;
++		rotation = <180>; /* FIXME */
++
++		port {
++			ov13b10_ep: endpoint {
++				data-lanes = <1 2 3 4>;
++				link-frequencies = /bits/ 64 <560000000>;
++				remote-endpoint = <&csiphy0_ep>;
++			};
++		};
++	};
++
++	// eeprom@50/51 <= l2c
++};
++
++&cci2 {
++	status = "okay";
++};
++
++&cci2_i2c1 {
++	// ??? @10 appears when CAMCC_MCLK3_CLK@19.2MHz
++	// On 2023 model, S5K4H7@2d, image quality is better than hi846
++
++	camera_front: camera@20 {
++		compatible = "hynix,hi846";
++		reg = <0x20>;
++
++		pinctrl-0 = <&camf_rgb_default>;
++		pinctrl-names = "default";
++
++		clocks = <&camcc CAMCC_MCLK3_CLK>;
++
++		assigned-clocks = <&camcc CAMCC_MCLK3_CLK>;
++		assigned-clock-rates = <24000000>;
++
++		reset-gpios = <&tlmm 15 GPIO_ACTIVE_LOW>;
++		vddio-supply = <&vreg_l2c>;
++		vdda-supply = <&vreg_l11c>;
++		vddd-supply = <&vreg_camf_1p2>;
++
++		leds = <&privacy_led>;
++		led-names = "privacy";
++
++		orientation = <0>;	/* Front facing */
++		rotation = <0>;
++
++		port {
++			hi846_ep: endpoint {
++				data-lanes = <1 2 3 4>;
++				link-frequencies = /bits/ 64 <180000000 360000000>;
++				remote-endpoint = <&csiphy3_ep>;
++			};
++		};
++	};
++
++	// eeprom@50
++	// actuator???@58, 2023 only
++};
++
++&tlmm {
++	cam_indicator_en: cam-indicator-en-state {
++		pins = "gpio34";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	camera_flash_en: camera-flash-en-state {
++		pins = "gpio93";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	camf_1p2_reg_en: camf-1p2-reg-en-state {
++		pins = "gpio44";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	camr_reg_en: camr-reg-en-state {
++		pins = "gpio92";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	camf_rgb_default: camf-rgb-default-state {
++		mclk-pins {
++			pins = "gpio17";
++			function = "cam_mclk";
++			drive-strength = <6>;
++			bias-disable;
++		};
++
++		sc-rgb-xshut-n-pins {
++			pins = "gpio15";
++			function = "gpio";
++			drive-strength = <2>;
++			bias-disable;
++		};
++	};
++
++	camr_rgb_default: camr-rgb-default-state {
++		mclk-pins {
++			pins = "gpio6";
++			function = "cam_mclk";
++			drive-strength = <6>;
++			bias-disable;
++		};
++
++		sc-rgb-xshut-n-pins {
++			pins = "gpio7";
++			function = "gpio";
++			drive-strength = <2>;
++			bias-disable;
++		};
++	};
++};
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
+--- a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
++++ b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
+@@ -11,6 +11,7 @@
+ 
+ /dts-v1/;
+ 
++#include <dt-bindings/clock/qcom,dsi-phy-28nm.h>
+ #include <dt-bindings/iio/qcom,spmi-adc7-pm8350.h>
+ #include <dt-bindings/gpio/gpio.h>
+ #include <dt-bindings/input/gpio-keys.h>
+@@ -29,23 +30,24 @@
+ 	aliases {
+ 		i2c4 = &i2c4;
+ 		i2c15 = &i2c15;
+-		serial1 = &uart2;
+-	};
+-
+-	chosen {
+-		#address-cells = <2>;
+-		#size-cells = <2>;
+-		ranges;
+-
+-		framebuffer0: framebuffer@c6200000 {
+-			compatible = "simple-framebuffer";
+-			reg = <0x0 0xc6200000 0x0 0x02400000>;
+-			width = <1600>;
+-			height = <2560>;
+-			stride = <(1600 * 4)>;
+-			format = "a8r8g8b8";
+-		};
+-	};
++		serial0 = &uart2;
++	};
++
++	/* use it as a fallback */
++        chosen {
++                #address-cells = <2>;
++                #size-cells = <2>;
++                ranges;
++
++                framebuffer0: framebuffer@c6200000 {
++                        compatible = "simple-framebuffer";
++                        reg = <0x0 0xc6200000 0x0 (2560 * 1600 * 4)>;
++                        width = <1600>;
++                        height = <2560>;
++                        stride = <(1600 * 4)>;
++                        format = "a8r8g8b8";
++                };
++        };
+ 
+ 	wcd938x: audio-codec {
+ 		compatible = "qcom,wcd9380-codec";
+@@ -87,7 +89,8 @@
+ 			linux,can-disable;
+ 			wakeup-source;
+ 		};
+-
++/*
++		// FIXME: touchpad won't work after detaching
+ 		switch-mode {
+ 			label = "Tablet Mode Switch";
+ 			gpios = <&tlmm 26 GPIO_ACTIVE_HIGH>;
+@@ -96,6 +99,52 @@
+ 			debounce-interval = <10>;
+ 			wakeup-source;
+ 		};
++*/	};
++
++	vreg_avdd_5p5: regulator-avdd-5p5 {
++		compatible = "regulator-fixed";
++
++		regulator-name = "vreg_avdd_5p5";
++		regulator-min-microvolt = <5500000>;
++		regulator-max-microvolt = <5500000>;
++
++		gpio = <&tlmm 52 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&avdd_reg_en>;
++
++		regulator-boot-on;
++	};
++
++	vreg_avee_5p5: regulator-avee-5p5 {
++		compatible = "regulator-fixed";
++
++		regulator-name = "vreg_avee_5p5";
++		regulator-min-microvolt = <5500000>;
++		regulator-max-microvolt = <5500000>;
++
++		gpio = <&tlmm 53 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&avee_reg_en>;
++
++		regulator-boot-on;
++	};
++
++	vreg_dsi_bl: regulator-dsi-bl {
++		compatible = "regulator-fixed";
++
++		regulator-name = "vreg_dsi_bl";
++
++		gpio = <&tlmm 0 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&bl_reg_en>;
++
++		regulator-boot-on;
+ 	};
+ 
+ 	vreg_misc_3p3: regulator-misc-3p3 {
+@@ -158,6 +207,11 @@
+ 	};
+ 
+ 	reserved-memory {
++		gpu_mem: gpu-mem@8bf00000 {
++			reg = <0 0x8bf00000 0 0x2000>;
++			no-map;
++		};
++
+ 		linux,cma {
+ 			compatible = "shared-dma-pool";
+ 			size = <0x0 0x8000000>;
+@@ -356,8 +410,8 @@
+ 
+ 		vreg_l2b: ldo2 {
+ 			regulator-name = "vreg_l2b";
+-			regulator-min-microvolt = <1904000>;
+-			regulator-max-microvolt = <1904000>;
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 
+@@ -367,9 +421,10 @@
+ 			regulator-max-microvolt = <1200000>;
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+ 			regulator-boot-on;
+-			regulator-allow-set-load;
+-			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+-						   RPMH_REGULATOR_MODE_HPM>;
++			// HACK: wrongly voting for LPM may block DP Alt
++			// regulator-allow-set-load;
++			// regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
++			// 			   RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 
+ 		vreg_l4b: ldo4 {
+@@ -377,16 +432,10 @@
+ 			regulator-min-microvolt = <912000>;
+ 			regulator-max-microvolt = <912000>;
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+-			regulator-allow-set-load;
+-			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+-						   RPMH_REGULATOR_MODE_HPM>;
+-		};
+-
+-		vreg_l5b: ldo5 {
+-			regulator-name = "vreg_l5b";
+-			regulator-min-microvolt = <1200000>;
+-			regulator-max-microvolt = <1200000>;
+-			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++			// HACK: wrongly voting for LPM may block DP Alt
++			// regulator-allow-set-load;
++			// regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
++			// 			   RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 
+ 		vreg_l6b: ldo6 {
+@@ -398,21 +447,6 @@
+ 			regulator-allow-set-load;
+ 			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+ 						   RPMH_REGULATOR_MODE_HPM>;
+-		};
+-
+-		vreg_l7b: ldo7 {
+-			regulator-name = "vreg_l7b";
+-			regulator-min-microvolt = <1800000>;
+-			regulator-max-microvolt = <1800000>;
+-			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+-			regulator-boot-on;
+-		};
+-
+-		vreg_l9b: ldo9 {
+-			regulator-name = "vreg_l9b";
+-			regulator-min-microvolt = <912000>;
+-			regulator-max-microvolt = <912000>;
+-			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 	};
+ 
+@@ -435,6 +469,8 @@
+ 			regulator-always-on;
+ 		};
+ 
++		/* s2c, s3c */
++
+ 		vreg_l1c: ldo1 {
+ 			regulator-name = "vreg_l1c";
+ 			regulator-min-microvolt = <1800000>;
+@@ -444,13 +480,7 @@
+ 			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+ 						   RPMH_REGULATOR_MODE_HPM>;
+ 		};
+-
+-		vreg_l2c: ldo2 {
+-			regulator-name = "vreg_l2c";
+-			regulator-min-microvolt = <1800000>;
+-			regulator-max-microvolt = <1800000>;
+-			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+-		};
++		/* l2c, l3c,... s13c */
+ 
+ 		vreg_l8c: ldo8 {
+ 			regulator-name = "vreg_l8c";
+@@ -498,6 +528,7 @@
+ 		vdd-l6-l9-l10-supply = <&vreg_s12b>;
+ 		vdd-l8-supply = <&vreg_s12b>;
+ 
++		/* s10d, s11d, s12d */
+ 		vreg_l2d: ldo2 {
+ 			regulator-name = "vreg_l2d";
+ 			regulator-min-microvolt = <3072000>;
+@@ -508,21 +539,15 @@
+ 						   RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 
+-		vreg_l3d: ldo3 {
+-			regulator-name = "vreg_l3d";
+-			regulator-min-microvolt = <1200000>;
+-			regulator-max-microvolt = <1200000>;
+-			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+-		};
+-
+ 		vreg_l4d: ldo4 {
+ 			regulator-name = "vreg_l4d";
+ 			regulator-min-microvolt = <1200000>;
+ 			regulator-max-microvolt = <1200000>;
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+-			regulator-allow-set-load;
+-			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+-						   RPMH_REGULATOR_MODE_HPM>;
++			// HACK: wrongly voting for LPM may block DP Alt
++			// regulator-allow-set-load;
++			// regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
++			// 			   RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 
+ 		vreg_l6d: ldo6 {
+@@ -560,11 +585,12 @@
+ 			regulator-min-microvolt = <912000>;
+ 			regulator-max-microvolt = <912000>;
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+-			regulator-allow-set-load;
+-			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+-						   RPMH_REGULATOR_MODE_HPM>;
+-		};
+-
++			// HACK: wrongly voting for LPM may block DP Alt
++			// regulator-allow-set-load;
++			// regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
++			// 			   RPMH_REGULATOR_MODE_HPM>;
++		};
++/*
+ 		vreg_l10d: ldo10 {
+ 			regulator-name = "vreg_l10d";
+ 			regulator-min-microvolt = <912000>;
+@@ -574,7 +600,11 @@
+ 			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+ 						   RPMH_REGULATOR_MODE_HPM>;
+ 		};
+-	};
++*/
++	};
++	/* pmr735a
++	 * "PPP_RESOURCE_ID_SMPS3_E" / s3e
++	 */
+ };
+ 
+ &dispcc0 {
+@@ -595,34 +625,58 @@
+ 
+ &gpu {
+ 	status = "okay";
+-};
+-
+-&gpu_zap_shader {
+-	firmware-name = "qcom/sc8280xp/HUAWEI/gaokun3/qcdxkmsuc8280.mbn";
+-};
++
++	zap-shader {
++		memory-region = <&gpu_mem>;
++		firmware-name = "qcom/sc8280xp/HUAWEI/gaokun3/qcdxkmsuc8280.mbn";
++	};
++};
++
+ 
+ &i2c4 {
+-	clock-frequency = <400000>;
++	clock-frequency = <1000000>;
+ 
+ 	pinctrl-0 = <&i2c4_default>;
+ 	pinctrl-names = "default";
+ 
+ 	status = "okay";
+ 
+-	touchscreen@4f {
+-		compatible = "hid-over-i2c";
+-		reg = <0x4f>;
+-
+-		hid-descr-addr = <0x1>;
++	/* himax ic @48 @49, enable this bus for userspace i2c IO */
++};
++
++&spi6 {
++	qcom,force-gsi-mode;
++
++	pinctrl-0 = <&spi6_default>;
++	pinctrl-names = "default";
++
++	status = "okay";
++
++	touchscreen@0 {
++		compatible = "himax,hx83121a-ts";
++		reg = <0>;
++
++		// TODO: power supply, always on rencently
+ 		interrupts-extended = <&tlmm 175 IRQ_TYPE_LEVEL_LOW>;
+-
+-		vdd-supply = <&vreg_misc_3p3>;
+-		vddl-supply = <&vreg_s10b>;
++		reset-gpios = <&tlmm 99 GPIO_ACTIVE_LOW>;
++
++		panel = <&panel>;
++
++		spi-max-frequency = <12000000>;
++
++		touchscreen-size-x = <25600>;
++		touchscreen-size-y = <16000>;
++
++		/*
++		 * internally handle invert first, two transformations are
++		 * non-comutative even if we can swap first.
++		 */
++		touchscreen-swapped-x-y;
++		touchscreen-inverted-x;
+ 
+ 		pinctrl-0 = <&ts0_default>;
+ 		pinctrl-names = "default";
+ 	};
+-
+ };
+ 
+ &i2c15 {
+@@ -637,7 +691,15 @@
+ 		compatible = "huawei,gaokun3-ec";
+ 		reg = <0x38>;
+ 
+-		interrupts-extended = <&tlmm 103 IRQ_TYPE_LEVEL_LOW>;
++		interrupts-extended = <&pdc 215 IRQ_TYPE_LEVEL_LOW>;
++		enable-gpios = <&tlmm 173 GPIO_ACTIVE_HIGH>;
++		bat-gpios = <&tlmm 41 GPIO_ACTIVE_HIGH>;
++
++		// not stable yet, so comment out it
++		// wakeup-source;
++
++		pinctrl-0 = <&ec_default>;
++		pinctrl-names = "default";
+ 
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+@@ -647,7 +709,6 @@
+ 			reg = <0>;
+ 			power-role = "dual";
+ 			data-role = "dual";
+-
+ 			ports {
+ 				#address-cells = <1>;
+ 				#size-cells = <0>;
+@@ -655,7 +716,7 @@
+ 				port@0 {
+ 					reg = <0>;
+ 
+-					ucsi0_hs_in: endpoint {
++					ucsi0_hs_in: endpoint { // highspeed, usb2.0, role_switch
+ 						remote-endpoint = <&usb_0_dwc3_hs>;
+ 					};
+ 				};
+@@ -663,7 +724,7 @@
+ 				port@1 {
+ 					reg = <1>;
+ 
+-					ucsi0_ss_in: endpoint {
++					ucsi0_ss_in: endpoint { // superspeed, usb3.0
+ 						remote-endpoint = <&usb_0_qmpphy_out>;
+ 					};
+ 				};
+@@ -725,7 +786,8 @@
+ };
+ 
+ &mdss0_dp0_out {
+-	data-lanes = <0 1>;
++	data-lanes = <0 1 2 3>;
++	link-frequencies = /bits/ 64 <1620000000 2700000000 5400000000 8100000000>;
+ 	remote-endpoint = <&usb_0_qmpphy_dp_in>;
+ };
+ 
+@@ -734,11 +796,94 @@
+ };
+ 
+ &mdss0_dp1_out {
+-	data-lanes = <0 1>;
++	data-lanes = <0 1 2 3>;
++	link-frequencies = /bits/ 64 <1620000000 2700000000 5400000000 8100000000>;
+ 	remote-endpoint = <&usb_1_qmpphy_dp_in>;
+ };
+ 
++&mdss0_dsi0 {
++	vdda-supply = <&vreg_l3b>;
++
++	qcom,dual-dsi-mode;
++	qcom,master-dsi;
++	qcom,sync-dual-dsi;
++
++	status = "okay";
++
++	panel: panel@0 {
++		compatible = "csot,ppc357db1-4", "himax,hx83121a";
++		reg = <0>;
++
++		pinctrl-0 = <&disp_reset_n>, <&mdp_vsync_active>;
++		pinctrl-names = "default";
++
++		reset-gpios = <&tlmm 38 GPIO_ACTIVE_LOW>;
++
++		vddi-supply = <&vreg_l2b>;
++		avdd-supply = <&vreg_avdd_5p5>;
++		avee-supply = <&vreg_avee_5p5>;
++		bl-supply = <&vreg_dsi_bl>;
++
++		ports {
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			port@0 {
++				reg = <0>;
++
++				panel_in_0: endpoint {
++					remote-endpoint = <&mdss0_dsi0_out>;
++				};
++			};
++
++			port@1 {
++				reg = <1>;
++
++				panel_in_1: endpoint {
++					remote-endpoint = <&mdss0_dsi1_out>;
++				};
++			};
++		};
++	};
++};
++
++&mdss0_dsi0_out {
++	data-lanes = <0 1 2 3>;
++	remote-endpoint = <&panel_in_0>;
++};
++
++&mdss0_dsi0_phy {
++	vdds-supply = <&vreg_l6b>;
++
++	status = "okay";
++};
++
++&mdss0_dsi1 {
++	vdda-supply = <&vreg_l3b>;
++
++	qcom,dual-dsi-mode;
++	qcom,sync-dual-dsi;
++
++	status = "okay";
++
++	/* DSI1 is slave, so use DSI0 clocks */
++	assigned-clock-parents = <&mdss0_dsi0_phy DSI_BYTE_PLL_CLK>,
++				 <&mdss0_dsi0_phy DSI_PIXEL_PLL_CLK>;
++};
++
++&mdss0_dsi1_out {
++	data-lanes = <0 1 2 3>;
++	remote-endpoint = <&panel_in_1>;
++};
++
++&mdss0_dsi1_phy {
++	vdds-supply = <&vreg_l6b>;
++
++	status = "okay";
++};
++
+ &pcie2a {
++
+ 	vddpe-3v3-supply = <&vreg_nvme>;
+ 
+ 	pinctrl-0 = <&pcie2a_default>;
+@@ -754,14 +899,10 @@
+ 	status = "okay";
+ };
+ 
+-&pcie2a_port0 {
+-	reset-gpios = <&tlmm 143 GPIO_ACTIVE_LOW>;
+-	wake-gpios = <&tlmm 145 GPIO_ACTIVE_LOW>;
+-};
+-
+ &pcie4 {
+ 	max-link-speed = <2>;
+ 
++
+ 	vddpe-3v3-supply = <&vreg_wlan>;
+ 
+ 	pinctrl-0 = <&pcie4_default>;
+@@ -771,9 +912,6 @@
+ };
+ 
+ &pcie4_port0 {
+-	reset-gpios = <&tlmm 141 GPIO_ACTIVE_LOW>;
+-	wake-gpios = <&tlmm 139 GPIO_ACTIVE_LOW>;
+-
+ 	wifi@0 {
+ 		compatible = "pci17cb,1103";
+ 		reg = <0x10000 0x0 0x0 0x0 0x0>;
+@@ -787,6 +925,9 @@
+ 		vddrfa0p8-supply = <&vreg_pmu_rfa_0p8>;
+ 		vddrfa1p2-supply = <&vreg_pmu_rfa_1p2>;
+ 		vddrfa1p8-supply = <&vreg_pmu_rfa_1p7>;
++
++		/* HACK: qmi-chip-id=18 */
++		qcom,calibration-variant = "NTM_TW220";
+ 	};
+ };
+ 
+@@ -971,13 +1112,18 @@
+ 	status = "okay";
+ };
+ 
++&remoteproc_slpi {
++	firmware-name = "qcom/sc8280xp/HUAWEI/gaokun3/qcslpi8280.mbn";
++	status = "okay";
++};
++
+ &rxmacro {
+ 	status = "okay";
+ };
+ 
+ &sound {
+ 	compatible = "qcom,sc8280xp-sndcard";
+-	model = "SC8280XP-HUAWEI-MATEBOOKEGO";
++	model = "SC8280XP-HUAWEI-GAOKUN3";
+ 	audio-routing = "SpkrLeft IN", "WSA_SPK1 OUT",
+ 			"SpkrRight IN", "WSA_SPK2 OUT",
+ 			"IN1_HPHL", "HPHL_OUT",
+@@ -1127,6 +1273,8 @@
+ 		vddrfa1p7-supply = <&vreg_pmu_rfa_1p7>;
+ 
+ 		max-speed = <3200000>;
++
++		local-bd-address = [ f2 72 be a4 2d a6 ];
+ 	};
+ };
+ 
+@@ -1143,7 +1291,7 @@
+ };
+ 
+ &usb_0_hsphy {
+-	vdda-pll-supply = <&vreg_l9d>;
++	vdda-pll-supply = <&vreg_l6d>;
+ 	vdda18-supply = <&vreg_l1c>;
+ 	vdda33-supply = <&vreg_l7d>;
+ 
+@@ -1151,9 +1299,10 @@
+ };
+ 
+ &usb_0_qmpphy {
+-	vdda-phy-supply = <&vreg_l9d>;
+-	vdda-pll-supply = <&vreg_l4d>;
+-
++	vdda-phy-supply = <&vreg_l4d>;
++	vdda-pll-supply = <&vreg_l9d>;
++
++	mode-switch;
+ 	orientation-switch;
+ 
+ 	status = "okay";
+@@ -1180,7 +1329,7 @@
+ };
+ 
+ &usb_1_hsphy {
+-	vdda-pll-supply = <&vreg_l4b>;
++	vdda-pll-supply = <&vreg_l6b>;
+ 	vdda18-supply = <&vreg_l1c>;
+ 	vdda33-supply = <&vreg_l13c>;
+ 
+@@ -1188,9 +1337,10 @@
+ };
+ 
+ &usb_1_qmpphy {
+-	vdda-phy-supply = <&vreg_l4b>;
+-	vdda-pll-supply = <&vreg_l3b>;
+-
++	vdda-phy-supply = <&vreg_l3b>;
++	vdda-pll-supply = <&vreg_l4b>;
++
++	mode-switch;
+ 	orientation-switch;
+ 
+ 	status = "okay";
+@@ -1209,7 +1359,7 @@
+ };
+ 
+ &usb_2_hsphy0 {
+-	vdda-pll-supply = <&vreg_l1b>;
++	vdda-pll-supply = <&vreg_l6d>;
+ 	vdda18-supply = <&vreg_l1c>;
+ 	vdda33-supply = <&vreg_l7d>;
+ 
+@@ -1217,7 +1367,7 @@
+ };
+ 
+ &usb_2_hsphy1 {
+-	vdda-pll-supply = <&vreg_l8d>;
++	vdda-pll-supply = <&vreg_l6d>;
+ 	vdda18-supply = <&vreg_l1c>;
+ 	vdda33-supply = <&vreg_l7d>;
+ 
+@@ -1225,7 +1375,7 @@
+ };
+ 
+ &usb_2_hsphy2 {
+-	vdda-pll-supply = <&vreg_l10d>;
++	vdda-pll-supply = <&vreg_l6d>;
+ 	vdda18-supply = <&vreg_l8c>;
+ 	vdda33-supply = <&vreg_l2d>;
+ 
+@@ -1233,7 +1383,7 @@
+ };
+ 
+ &usb_2_hsphy3 {
+-	vdda-pll-supply = <&vreg_l10d>;
++	vdda-pll-supply = <&vreg_l6d>;
+ 	vdda18-supply = <&vreg_l8c>;
+ 	vdda33-supply = <&vreg_l2d>;
+ 
+@@ -1241,15 +1391,15 @@
+ };
+ 
+ &usb_2_qmpphy0 {
+-	vdda-phy-supply = <&vreg_l1b>;
+-	vdda-pll-supply = <&vreg_l4d>;
++	vdda-phy-supply = <&vreg_l4d>;
++	vdda-pll-supply = <&vreg_l1b>;
+ 
+ 	status = "okay";
+ };
+ 
+ &usb_2_qmpphy1 {
+-	vdda-phy-supply = <&vreg_l8d>;
+-	vdda-pll-supply = <&vreg_l4d>;
++	vdda-phy-supply = <&vreg_l4d>;
++	vdda-pll-supply = <&vreg_l8d>;
+ 
+ 	status = "okay";
+ };
+@@ -1302,8 +1452,28 @@
+ };
+ 
+ &tlmm {
+-
+-	gpio-reserved-ranges = <70 2>, <74 6>, <83 4>, <125 2>, <128 2>, <154 4>;
++	gpio-reserved-ranges = <70 2>, <74 6>, <83 4>, <125 2>, <128 2>;
++
++	avdd_reg_en: avdd-reg-en-state {
++		pins = "gpio52";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	avee_reg_en: avee-reg-en-state {
++		pins = "gpio53";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	bl_reg_en: bl-reg-en-state {
++		pins = "gpio0";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
+ 
+ 	bt_default: bt-default-state {
+ 		hstp-bt-en-pins {
+@@ -1320,6 +1490,36 @@
+ 		};
+ 	};
+ 
++	disp_reset_n: disp-reset-n-state {
++		pins = "gpio38";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-pull-up;
++	};
++
++	ec_default: ec-default-state {
++		int-n-pins {
++			pins = "gpio103";
++			function = "gpio";
++			drive-strength = <2>;
++			bias-disable;
++		};
++
++		en-pins {
++			pins = "gpio173";
++			function = "gpio";
++			drive-strength = <4>;
++			bias-pull-down;
++		};
++
++		bat-pins {
++			pins = "gpio41";
++			function = "gpio";
++			drive-strength = <2>;
++			bias-pull-down;
++		};
++	};
++
+ 	i2c4_default: i2c4-default-state {
+ 		pins = "gpio171", "gpio172";
+ 		function = "qup4";
+@@ -1332,6 +1532,13 @@
+ 		function = "qup15";
+ 		drive-strength = <2>;
+ 		bias-pull-up;
++	};
++
++	mdp_vsync_active: mdss-te-state {
++		pins = "gpio8";
++		function = "mdp_vsync";
++		drive-strength = <2>;
++		bias-disable;
+ 	};
+ 
+ 	mode_pin_active: mode-pin-state {
+@@ -1413,6 +1620,39 @@
+ 		};
+ 	};
+ 
++	spi6_default: spi6-default-state {
++		miso-n-pins {
++			pins = "gpio154";
++			function = "qup6";
++			drive-strength = <2>;
++			bias-pull-down;
++		};
++
++		mosi-n-pins {
++			pins = "gpio155";
++			function = "qup6";
++			drive-strength = <2>;
++			bias-pull-down;
++			output-high;
++		};
++
++		clk-n-pins {
++			pins = "gpio156";
++			function = "qup6";
++			drive-strength = <2>;
++			bias-pull-down;
++			output-high;
++		};
++
++		cs-n-pins {
++			pins = "gpio157";
++			function = "qup6";
++			drive-strength = <2>;
++			bias-pull-down;
++			output-high;
++		};
++	};
++
+ 	ts0_default: ts0-default-state {
+ 		int-n-pins {
+ 			pins = "gpio175";
+@@ -1426,7 +1666,6 @@
+ 			function = "gpio";
+ 			drive-strength = <2>;
+ 			bias-disable;
+-			output-high;
+ 		};
+ 	};
+ 
+@@ -1487,3 +1726,20 @@
+ 		bias-pull-down;
+ 	};
+ };
++
++&pcie2a_port0 {
++	reset-gpios = <&tlmm 143 GPIO_ACTIVE_LOW>;
++	wake-gpios = <&tlmm 145 GPIO_ACTIVE_LOW>;
++};
++
++&pcie4_port0 {
++	reset-gpios = <&tlmm 141 GPIO_ACTIVE_LOW>;
++	wake-gpios = <&tlmm 139 GPIO_ACTIVE_LOW>;
++};
++
++&iris {
++ firmware-name = "qcom/sc8280xp/HUAWEI/gaokun3/qcvss8280.mbn";
++ status = "okay";
++ video-firmware { iommus = <&apps_smmu 0x2e02 0x400>; };
++};
++#include "sc8280xp-huawei-gaokun3-camera.dtsi"
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp.dtsi b/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
+--- a/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
++++ b/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
+@@ -13,6 +13,7 @@
+ #include <dt-bindings/clock/qcom,sc8280xp-lpasscc.h>
+ #include <dt-bindings/clock/qcom,sm8350-videocc.h>
+ #include <dt-bindings/dma/qcom-gpi.h>
++#include <dt-bindings/firmware/qcom,scm.h>
+ #include <dt-bindings/interconnect/qcom,icc.h>
+ #include <dt-bindings/interconnect/qcom,osm-l3.h>
+ #include <dt-bindings/interconnect/qcom,sc8280xp.h>
+@@ -626,7 +627,12 @@
+ 		};
+ 
+ 		reserved-region@83b00000 {
+-			reg = <0 0x83b00000 0 0x1700000>;
++			reg = <0 0x83b00000 0 0xf00000>;
++			no-map;
++		};
++
++		adsp_rpc_remote_heap_mem: adsp-rpc-remote-heap@84a00000 {
++			reg = <0 0x84a00000 0 0x800000>;
+ 			no-map;
+ 		};
+ 
+@@ -2971,6 +2977,9 @@
+ 					qcom,glink-channels = "fastrpcglink-apps-dsp";
+ 					label = "adsp";
+ 					qcom,non-secure-domain;
++					memory-region = <&adsp_rpc_remote_heap_mem>;
++					qcom,vmids = <QCOM_SCM_VMID_LPASS
++						      QCOM_SCM_VMID_ADSP_HEAP>;
+ 					#address-cells = <1>;
+ 					#size-cells = <0>;
+ 
+@@ -4749,8 +4758,12 @@
+ 				      "core";
+ 			interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
+ 			interconnects = <&mmss_noc MASTER_MDP0 0 &mc_virt SLAVE_EBI1 0>,
+-					<&mmss_noc MASTER_MDP1 0 &mc_virt SLAVE_EBI1 0>;
+-			interconnect-names = "mdp0-mem", "mdp1-mem";
++					<&mmss_noc MASTER_MDP1 0 &mc_virt SLAVE_EBI1 0>,
++					<&gem_noc MASTER_APPSS_PROC 3
++					 &config_noc SLAVE_DISPLAY_CFG 3>;
++			interconnect-names = "mdp0-mem",
++					     "mdp1-mem",
++					     "cpu-cfg";
+ 			iommus = <&apps_smmu 0x1000 0x402>;
+ 			power-domains = <&dispcc0 MDSS_GDSC>;
+ 			resets = <&dispcc0 DISP_CC_MDSS_CORE_BCR>;
+@@ -5055,6 +5068,26 @@
+ 				status = "disabled";
+ 			};
+ 
++			mdss0_dsi1_phy: phy@ae96400 {
++				compatible = "qcom,sc8280xp-dsi-phy-5nm",
++					     "qcom,sa8775p-dsi-phy-5nm";
++				reg = <0 0x0ae96400 0 0x200>,
++				      <0 0x0ae96600 0 0x280>,
++				      <0 0x0ae96900 0 0x280>;
++				reg-names = "dsi_phy",
++					    "dsi_phy_lane",
++					    "dsi_pll";
++
++				#clock-cells = <1>;
++				#phy-cells = <0>;
++
++				clocks = <&dispcc0 DISP_CC_MDSS_AHB_CLK>,
++					 <&rpmhcc RPMH_CXO_CLK>;
++				clock-names = "iface", "ref";
++
++				status = "disabled";
++			};
++
+ 			mdss0_dsi1: dsi@ae96000 {
+ 				compatible = "qcom,sc8280xp-dsi-ctrl",
+ 					     "qcom,sa8775p-dsi-ctrl",
+@@ -5115,26 +5148,6 @@
+ 						};
+ 					};
+ 				};
+-			};
+-
+-			mdss0_dsi1_phy: phy@ae96400 {
+-				compatible = "qcom,sc8280xp-dsi-phy-5nm",
+-					     "qcom,sa8775p-dsi-phy-5nm";
+-				reg = <0 0x0ae96400 0 0x200>,
+-				      <0 0x0ae96600 0 0x280>,
+-				      <0 0x0ae96900 0 0x280>;
+-				reg-names = "dsi_phy",
+-					    "dsi_phy_lane",
+-					    "dsi_pll";
+-
+-				#clock-cells = <1>;
+-				#phy-cells = <0>;
+-
+-				clocks = <&dispcc0 DISP_CC_MDSS_AHB_CLK>,
+-					 <&rpmhcc RPMH_CXO_CLK>;
+-				clock-names = "iface", "ref";
+-
+-				status = "disabled";
+ 			};
+ 
+ 			mdss0_dp1: displayport-controller@ae98000 {
+diff --git a/arch/arm64/boot/dts/qcom/x1-el2.dtso b/arch/arm64/boot/dts/qcom/x1-el2.dtso
+--- a/arch/arm64/boot/dts/qcom/x1-el2.dtso
++++ b/arch/arm64/boot/dts/qcom/x1-el2.dtso
+@@ -1,4 +1,5 @@
+ // SPDX-License-Identifier: BSD-3-Clause
++#include <dt-bindings/firmware/qcom,scm.h>
+ 
+ /*
+  * x1 specific modifications required to boot in EL2.
+@@ -60,6 +61,14 @@
+ 	iommus = <&apps_smmu 0x0c00 0x0>;
+ };
+ 
++&remoteproc_adsp {
++	qcom,broken-reset;
++};
++
++&remoteproc_cdsp {
++	qcom,broken-reset;
++};
++
+ /*
+  * The "SBSA watchdog" is implemented in software in Gunyah
+  * and can't be used when running in EL2.
+@@ -67,3 +76,7 @@
+ &sbsa_watchdog {
+ 	status = "disabled";
+ };
++
++&scm {
++	qcom,shm-bridge-vmid = <QCOM_SCM_VMID_SELF_OWNER>;
++};
+diff --git a/drivers/char/tpm/Kconfig b/drivers/char/tpm/Kconfig
+--- a/drivers/char/tpm/Kconfig
++++ b/drivers/char/tpm/Kconfig
+@@ -243,6 +243,19 @@
+ 	help
+ 	  This driver proxies for firmware TPM running in TEE.
+ 
++config TCG_QCOM_TPM_QSEE
++	tristate "Gaokun3 Qualcomm QSEE fTPM validation"
++	depends on QCOM_QSEECOM && OF && !TCG_TPM2_HMAC
++	help
++	  Opt-in transport for the firmware-preloaded qcom.tz.tpm application
++	  on Huawei Gaokun3. The fixed firmware control area uses HLOS sharing
++	  even when the kernel's dynamic QSEECOM buffers use SELF_OWNER.
++
++	  This validation stage supports self-test, capabilities, PCR reads
++	  and random generation only. Provisioning, sealing, NV writes and
++	  TPM startup/shutdown are rejected. Load with allow_probe=1 after
++	  ensuring provisioning services are disabled during the test.
++
+ config TCG_SVSM
+ 	tristate "SNP SVSM vTPM interface"
+ 	depends on AMD_MEM_ENCRYPT
+diff --git a/drivers/char/tpm/Makefile b/drivers/char/tpm/Makefile
+--- a/drivers/char/tpm/Makefile
++++ b/drivers/char/tpm/Makefile
+@@ -45,5 +45,6 @@
+ obj-$(CONFIG_TCG_ARM_CRB_FFA) += tpm_crb_ffa.o
+ obj-$(CONFIG_TCG_VTPM_PROXY) += tpm_vtpm_proxy.o
+ obj-$(CONFIG_TCG_FTPM_TEE) += tpm_ftpm_tee.o
++obj-$(CONFIG_TCG_QCOM_TPM_QSEE) += tpm_qcom_qsee.o
+ obj-$(CONFIG_TCG_SVSM) += tpm_svsm.o
+ obj-$(CONFIG_TCG_LOONGSON) += tpm_loongson.o
+diff --git a/drivers/char/tpm/tpm_qcom_qsee.c b/drivers/char/tpm/tpm_qcom_qsee.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/char/tpm/tpm_qcom_qsee.c
+@@ -0,0 +1,501 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Qualcomm QSEE TPM transport driver.
++ * Based on Xilin Wu's driver (strongtz/linux-radxa-qcom,
++ * commit 9c3041295f115df392bf7675bd24685d152f18d4).
++ * Gaokun support currently permits non-provisioning validation only.
++ */
++
++#include <linux/auxiliary_bus.h>
++#include <linux/byteorder/generic.h>
++#include <linux/device.h>
++#include <linux/err.h>
++#include <linux/io.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/mm.h>
++#include <linux/of.h>
++#include <linux/overflow.h>
++#include <linux/ioport.h>
++#include <linux/sizes.h>
++#include <linux/slab.h>
++#include <linux/types.h>
++
++#include <linux/firmware/qcom/qcom_qseecom.h>
++#include <linux/firmware/qcom/qcom_scm.h>
++#include <linux/firmware/qcom/qcom_tzmem.h>
++
++#include "tpm.h"
++
++#define QCOM_TPM_QSEE_CONTROL_AREA_SIZE	(SZ_4K * 3)
++#define QCOM_TPM_QSEE_COMMAND_SIZE		TPM_BUFSIZE
++#define QCOM_TPM_QSEE_RESPONSE_SIZE		TPM_BUFSIZE
++#define QCOM_TPM_QSEE_MAX_TA_DATA_SIZE	SZ_1K
++#define QCOM_TPM_QSEE_NUM_VM_SHIFT	9
++
++#define QCOM_TPM_TYPE_DTPM		0x6454504d
++#define QCOM_TPM_TYPE_FTPM		0x6654504d
++#define QCOM_TPM_TYPE_STPM		0x7354504d
++
++#define QCOM_TPM_QSEE_CMD_QUERY_INFO_2	(0x4000 | 18)
++#define QCOM_TPM_QSEE_CMD_SEND_COMMAND	(0x4000 | 8)
++
++/* Opt-in while extended validation and provisioning policy remain pending. */
++static bool allow_probe;
++module_param(allow_probe, bool, 0400);
++MODULE_PARM_DESC(allow_probe, "Enable Gaokun3 TPM capability/PCR/random validation (no provisioning)");
++
++static bool qcom_tpm_qsee_command_allowed(u32 command)
++{
++	switch (command) {
++	case TPM2_CC_SELF_TEST:
++	case TPM2_CC_GET_CAPABILITY:
++	case TPM2_CC_GET_RANDOM:
++	case TPM2_CC_PCR_READ:
++	case 0x017c: /* TPM2_GetTestResult */
++		return true;
++	default:
++		return false;
++	}
++}
++
++struct qcom_tpm_qsee_region {
++	resource_size_t start;
++	resource_size_t end;
++	bool reserved;
++};
++
++static int qcom_tpm_qsee_reserved(struct resource *res, void *data)
++{
++	struct qcom_tpm_qsee_region *area = data;
++
++	/*
++	 * arm64 request_standard_resources() exposes memblock NOMAP ranges
++	 * as plain IORESOURCE_MEM with IORES_DESC_NONE. The walking API
++	 * copies flags/descriptor/bounds, but deliberately not the name.
++	 */
++	if (res->flags == IORESOURCE_MEM && res->desc == IORES_DESC_NONE &&
++	    res->start <= area->start && res->end >= area->end)
++		area->reserved = true;
++	return 0;
++}
++
++struct qcom_tpm_qsee_control_area {
++	__le32 request;
++	__le32 status;
++	__le32 cancel;
++	__le32 start;
++	__le64 interrupt_control;
++	__le32 command_size;
++	__le64 command;
++	__le32 response_size;
++	__le64 response;
++} __packed;
++
++#define QCOM_TPM_QSEE_CONTROL_AREA_CMD_OFF	\
++	(sizeof(struct qcom_tpm_qsee_control_area))
++#define QCOM_TPM_QSEE_CA_STATUS		\
++	offsetof(struct qcom_tpm_qsee_control_area, status)
++#define QCOM_TPM_QSEE_CA_START		\
++	offsetof(struct qcom_tpm_qsee_control_area, start)
++#define QCOM_TPM_QSEE_CA_COMMAND_SIZE	\
++	offsetof(struct qcom_tpm_qsee_control_area, command_size)
++#define QCOM_TPM_QSEE_CA_COMMAND	\
++	offsetof(struct qcom_tpm_qsee_control_area, command)
++#define QCOM_TPM_QSEE_CA_RESPONSE_SIZE	\
++	offsetof(struct qcom_tpm_qsee_control_area, response_size)
++#define QCOM_TPM_QSEE_CA_RESPONSE	\
++	offsetof(struct qcom_tpm_qsee_control_area, response)
++
++struct qcom_tpm_qsee_query_req {
++	__le32 command_id;
++} __packed;
++
++struct qcom_tpm_qsee_query_rsp {
++	__le32 nv_store_size;
++	__le64 control_area;
++} __packed;
++
++struct qcom_tpm_qsee_send_req {
++	__le32 command_id;
++	__le32 input_size;
++	u8 input[QCOM_TPM_QSEE_MAX_TA_DATA_SIZE];
++} __packed;
++
++struct qcom_tpm_qsee_send_rsp {
++	__le32 output_size;
++	u8 output[QCOM_TPM_QSEE_MAX_TA_DATA_SIZE];
++} __packed;
++
++/**
++ * struct qcom_tpm_qsee - Qualcomm QSEE TPM driver state.
++ * @client: QSEECOM client for qcom.tz.tpm.
++ * @mempool: TZ memory pool for QSEECOM request/response buffers.
++ * @chip: TPM chip registered with the TPM core.
++ * @control_area: Mapped TPM control area.
++ * @control_area_phys: Physical address of the TPM control area.
++ * @control_area_shm_bridge: SHM bridge handle for the TPM control area.
++ * @lock: Serializes access to the TPM control area and TA command path.
++ */
++struct qcom_tpm_qsee {
++	struct qseecom_client *client;
++	struct qcom_tzmem_pool *mempool;
++	struct tpm_chip *chip;
++	void __iomem *control_area;
++	phys_addr_t control_area_phys;
++	u64 control_area_shm_bridge;
++	/* Serializes access to the TPM control area and TA command path. */
++	struct mutex lock;
++};
++
++static const char *qcom_tpm_type_name(u64 type)
++{
++	switch (type) {
++	case QCOM_TPM_TYPE_DTPM:
++		return "dTPM";
++	case QCOM_TPM_TYPE_FTPM:
++		return "fTPM";
++	case QCOM_TPM_TYPE_STPM:
++		return "sTPM";
++	default:
++		return "unknown";
++	}
++}
++
++static int qcom_tpm_qsee_app_send(struct qcom_tpm_qsee *qtpm, const void *req,
++				  size_t req_size, void *rsp, size_t rsp_size)
++{
++	size_t rsp_off;
++	size_t cmd_buf_size;
++	void *cmd_buf;
++	int ret;
++
++	rsp_off = ALIGN(req_size, 8);
++	cmd_buf_size = rsp_off + rsp_size;
++
++	cmd_buf = qcom_tzmem_alloc(qtpm->mempool, cmd_buf_size, GFP_KERNEL);
++	if (!cmd_buf)
++		return -ENOMEM;
++
++	memset(cmd_buf, 0, cmd_buf_size);
++	memcpy(cmd_buf, req, req_size);
++
++	ret = qcom_qseecom_app_send(qtpm->client, cmd_buf, req_size,
++				    cmd_buf + rsp_off, rsp_size);
++	if (!ret && rsp_size)
++		memcpy(rsp, cmd_buf + rsp_off, rsp_size);
++
++	qcom_tzmem_free(cmd_buf);
++	return ret;
++}
++
++static int qcom_tpm_qsee_query_info(struct qcom_tpm_qsee *qtpm)
++{
++	struct qcom_tpm_qsee_query_req req = {
++		.command_id = cpu_to_le32(QCOM_TPM_QSEE_CMD_QUERY_INFO_2),
++	};
++	struct qcom_tpm_qsee_query_rsp rsp = {};
++	u64 control_area, end;
++	struct qcom_tpm_qsee_region region;
++	int ret;
++
++	ret = qcom_tpm_qsee_app_send(qtpm, &req, sizeof(req), &rsp, sizeof(rsp));
++	if (ret)
++		return ret;
++
++	control_area = le64_to_cpu(rsp.control_area);
++	if (!control_area || !IS_ALIGNED(control_area, SZ_4K) ||
++	    check_add_overflow(control_area,
++			       (u64)QCOM_TPM_QSEE_CONTROL_AREA_SIZE - 1, &end) ||
++	    (phys_addr_t)end != end)
++		return -EINVAL;
++
++	/* Accept only a firmware-reserved region, never normal system RAM. */
++	if (region_intersects(control_area, QCOM_TPM_QSEE_CONTROL_AREA_SIZE,
++			      IORESOURCE_SYSTEM_RAM, IORES_DESC_NONE) != REGION_DISJOINT)
++		return -EINVAL;
++	region.start = control_area;
++	region.end = end;
++	region.reserved = false;
++	ret = walk_iomem_res_desc(IORES_DESC_NONE, IORESOURCE_MEM,
++				 control_area, end, &region, qcom_tpm_qsee_reserved);
++	if (ret || !region.reserved)
++		return -EINVAL;
++
++	qtpm->control_area_phys = control_area;
++	dev_info(&qtpm->client->aux_dev.dev,
++		 "Gaokun fTPM validation: control area %pa, NV store %u bytes\n",
++		 &qtpm->control_area_phys, le32_to_cpu(rsp.nv_store_size));
++
++	return 0;
++}
++
++static int qcom_tpm_qsee_send_ta_command(struct qcom_tpm_qsee *qtpm,
++					 u32 command_id, u32 input_size,
++					 const void *input)
++{
++	struct qcom_tpm_qsee_send_req *req;
++	size_t req_size = sizeof(struct qcom_tpm_qsee_send_req);
++	size_t rsp_size = sizeof(struct qcom_tpm_qsee_send_rsp);
++	size_t rsp_off = ALIGN(req_size, 8);
++	size_t cmd_buf_size = rsp_off + rsp_size;
++	void *cmd_buf;
++	int ret;
++
++	if (input_size > QCOM_TPM_QSEE_MAX_TA_DATA_SIZE)
++		return -EINVAL;
++
++	cmd_buf = qcom_tzmem_alloc(qtpm->mempool, cmd_buf_size, GFP_KERNEL);
++	if (!cmd_buf)
++		return -ENOMEM;
++
++	memset(cmd_buf, 0, cmd_buf_size);
++
++	req = cmd_buf;
++	req->command_id = cpu_to_le32(command_id);
++	req->input_size = cpu_to_le32(input_size);
++	if (input_size && input)
++		memcpy(req->input, input, input_size);
++
++	ret = qcom_qseecom_app_send(qtpm->client, cmd_buf, req_size,
++				    cmd_buf + rsp_off, rsp_size);
++
++	qcom_tzmem_free(cmd_buf);
++	return ret;
++}
++
++static void qcom_tpm_qsee_delete_control_area_bridge(void *data)
++{
++	struct qcom_tpm_qsee *qtpm = data;
++
++	/* This action is registered only after successful bridge creation. */
++	qcom_scm_shm_bridge_delete(qtpm->control_area_shm_bridge);
++}
++
++static int qcom_tpm_qsee_create_control_area_bridge(struct qcom_tpm_qsee *qtpm)
++{
++	struct device *dev = &qtpm->client->aux_dev.dev;
++	int ret;
++
++	/*
++	 * Firmware allocated this fixed area before the EL2 handover. Its TPM
++	 * access contract remains HLOS-facing. The allocator's SELF_OWNER
++	 * policy is appropriate for new QSEECOM buffers, not this region.
++	 * Keep qcom_tzmem pool allocations unchanged in both EL1 and EL2.
++	 */
++	ret = qcom_scm_shm_bridge_create(
++		qtpm->control_area_phys | QCOM_SCM_PERM_RW,
++		qtpm->control_area_phys | QCOM_SCM_PERM_RW,
++		QCOM_TPM_QSEE_CONTROL_AREA_SIZE | (1ULL << QCOM_TPM_QSEE_NUM_VM_SHIFT),
++		QCOM_SCM_VMID_HLOS, &qtpm->control_area_shm_bridge);
++	if (ret)
++		return ret;
++
++	return devm_add_action_or_reset(dev,
++					qcom_tpm_qsee_delete_control_area_bridge,
++					qtpm);
++}
++
++static int qcom_tpm_qsee_send(struct tpm_chip *chip, u8 *buf, size_t bufsiz,
++			      size_t cmd_len)
++{
++	struct qcom_tpm_qsee *qtpm = dev_get_drvdata(chip->dev.parent);
++	void __iomem *command;
++	void __iomem *response;
++	phys_addr_t command_phys;
++	phys_addr_t response_phys;
++	__le64 command_le;
++	__le64 response_le;
++	struct tpm_header header;
++	u32 response_len;
++	int ret;
++
++	if (cmd_len > QCOM_TPM_QSEE_COMMAND_SIZE)
++		return -E2BIG;
++
++	if (cmd_len < TPM_HEADER_SIZE || cmd_len > bufsiz)
++		return -EINVAL;
++
++	memcpy(&header, buf, sizeof(header));
++	if (be32_to_cpu(header.length) != cmd_len ||
++	    be16_to_cpu(header.tag) != TPM2_ST_NO_SESSIONS)
++		return -EINVAL;
++	if (!qcom_tpm_qsee_command_allowed(be32_to_cpu(header.ordinal))) {
++		dev_warn_ratelimited(chip->dev.parent,
++			"TPM validation mode rejected command 0x%x\n",
++			be32_to_cpu(header.ordinal));
++		return -EACCES;
++	}
++
++	if (QCOM_TPM_QSEE_CONTROL_AREA_CMD_OFF + QCOM_TPM_QSEE_COMMAND_SIZE +
++	    QCOM_TPM_QSEE_RESPONSE_SIZE >
++	    QCOM_TPM_QSEE_CONTROL_AREA_SIZE)
++		return -E2BIG;
++
++	mutex_lock(&qtpm->lock);
++
++	command = qtpm->control_area + QCOM_TPM_QSEE_CONTROL_AREA_CMD_OFF;
++	response = command + QCOM_TPM_QSEE_COMMAND_SIZE;
++	command_phys = qtpm->control_area_phys +
++		       QCOM_TPM_QSEE_CONTROL_AREA_CMD_OFF;
++	response_phys = command_phys + QCOM_TPM_QSEE_COMMAND_SIZE;
++	command_le = cpu_to_le64(command_phys);
++	response_le = cpu_to_le64(response_phys);
++
++	writel(0, qtpm->control_area + QCOM_TPM_QSEE_CA_STATUS);
++	memcpy_toio(command, buf, cmd_len);
++	memset_io(response, 0, QCOM_TPM_QSEE_RESPONSE_SIZE);
++
++	writel(QCOM_TPM_QSEE_COMMAND_SIZE,
++	       qtpm->control_area + QCOM_TPM_QSEE_CA_COMMAND_SIZE);
++	memcpy_toio(qtpm->control_area + QCOM_TPM_QSEE_CA_COMMAND, &command_le,
++		    sizeof(command_le));
++	writel(QCOM_TPM_QSEE_RESPONSE_SIZE,
++	       qtpm->control_area + QCOM_TPM_QSEE_CA_RESPONSE_SIZE);
++	memcpy_toio(qtpm->control_area + QCOM_TPM_QSEE_CA_RESPONSE, &response_le,
++		    sizeof(response_le));
++	writel(1, qtpm->control_area + QCOM_TPM_QSEE_CA_START);
++
++	/* Ensure the TA observes the command and control area writes. */
++	wmb();
++
++	ret = qcom_tpm_qsee_send_ta_command(qtpm,
++					    QCOM_TPM_QSEE_CMD_SEND_COMMAND,
++					    0, NULL);
++	if (ret)
++		goto out_unlock;
++
++	/* Ensure the CPU observes the TA response writes before reading them. */
++	rmb();
++
++	if (readl(qtpm->control_area + QCOM_TPM_QSEE_CA_STATUS) ||
++	    readl(qtpm->control_area + QCOM_TPM_QSEE_CA_START)) {
++		ret = -EIO;
++		goto out_unlock;
++	}
++	memcpy_fromio(&header, response, sizeof(header));
++	if (be16_to_cpu(header.tag) != TPM2_ST_NO_SESSIONS) {
++		ret = -EIO;
++		goto out_unlock;
++	}
++	response_len = be32_to_cpu(header.length);
++
++	if (response_len < TPM_HEADER_SIZE) {
++		ret = -EIO;
++		goto out_unlock;
++	}
++
++	if (response_len > QCOM_TPM_QSEE_RESPONSE_SIZE || response_len > bufsiz) {
++		ret = -EIO;
++		goto out_unlock;
++	}
++
++	memcpy_fromio(buf, response, response_len);
++	ret = response_len;
++
++out_unlock:
++	mutex_unlock(&qtpm->lock);
++	return ret;
++}
++
++static const struct tpm_class_ops qcom_tpm_qsee_ops = {
++	.flags = TPM_OPS_AUTO_STARTUP,
++	.send = qcom_tpm_qsee_send,
++};
++
++static int qcom_tpm_qsee_probe(struct auxiliary_device *aux_dev,
++			       const struct auxiliary_device_id *aux_dev_id)
++{
++	struct device *dev = &aux_dev->dev;
++	struct qcom_tzmem_pool_config pool_config = {};
++	struct qcom_tpm_qsee *qtpm;
++	struct tpm_chip *chip;
++	u64 tpm_type;
++	int ret;
++
++	if (!allow_probe || !of_machine_is_compatible("huawei,gaokun3"))
++		return -ENODEV;
++
++	qtpm = devm_kzalloc(dev, sizeof(*qtpm), GFP_KERNEL);
++	if (!qtpm)
++		return -ENOMEM;
++
++	qtpm->client = container_of(aux_dev, struct qseecom_client, aux_dev);
++	mutex_init(&qtpm->lock);
++
++	pool_config.initial_size = SZ_4K;
++	pool_config.policy = QCOM_TZMEM_POLICY_MULTIPLIER;
++	pool_config.increment = 2;
++	pool_config.max_size = SZ_64K;
++
++	qtpm->mempool = devm_qcom_tzmem_pool_new(dev, &pool_config);
++	if (IS_ERR(qtpm->mempool))
++		return PTR_ERR(qtpm->mempool);
++
++	ret = qcom_scm_query_tpm_type(&tpm_type);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to query TPM type\n");
++
++	if (tpm_type != QCOM_TPM_TYPE_FTPM) {
++		dev_err(dev, "unsupported TPM type %#llx (%s)\n",
++			tpm_type, qcom_tpm_type_name(tpm_type));
++		return -ENODEV;
++	}
++
++	ret = qcom_tpm_qsee_query_info(qtpm);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to query TPM app info\n");
++
++	qtpm->control_area = devm_ioremap_wc(dev, qtpm->control_area_phys,
++					     QCOM_TPM_QSEE_CONTROL_AREA_SIZE);
++	if (!qtpm->control_area)
++		return -ENOMEM;
++
++	ret = qcom_tpm_qsee_create_control_area_bridge(qtpm);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "failed to share TPM control area\n");
++
++	chip = tpm_chip_alloc(dev, &qcom_tpm_qsee_ops);
++	if (IS_ERR(chip))
++		return PTR_ERR(chip);
++
++	qtpm->chip = chip;
++	qtpm->chip->flags |= TPM_CHIP_FLAG_TPM2 | TPM_CHIP_FLAG_SYNC |
++			     TPM_CHIP_FLAG_HWRNG_DISABLED;
++	auxiliary_set_drvdata(aux_dev, qtpm);
++
++	ret = tpm_chip_register(qtpm->chip);
++	if (ret) {
++		put_device(&qtpm->chip->dev);
++		return ret;
++	}
++
++	return 0;
++}
++
++static void qcom_tpm_qsee_remove(struct auxiliary_device *aux_dev)
++{
++	struct qcom_tpm_qsee *qtpm = auxiliary_get_drvdata(aux_dev);
++
++	tpm_chip_unregister(qtpm->chip);
++	put_device(&qtpm->chip->dev);
++}
++
++static const struct auxiliary_device_id qcom_tpm_qsee_id_table[] = {
++	{ .name = "qcom_qseecom.tpm" },
++	{}
++};
++MODULE_DEVICE_TABLE(auxiliary, qcom_tpm_qsee_id_table);
++
++static struct auxiliary_driver qcom_tpm_qsee_driver = {
++	.name = "tpm_qcom_qsee",
++	.probe = qcom_tpm_qsee_probe,
++	.remove = qcom_tpm_qsee_remove,
++	.id_table = qcom_tpm_qsee_id_table,
++};
++module_auxiliary_driver(qcom_tpm_qsee_driver);
++
++MODULE_DESCRIPTION("Gaokun3 QSEE fTPM non-provisioning validation driver");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/clk/qcom/camcc-sc8280xp.c b/drivers/clk/qcom/camcc-sc8280xp.c
+--- a/drivers/clk/qcom/camcc-sc8280xp.c
++++ b/drivers/clk/qcom/camcc-sc8280xp.c
+@@ -667,7 +667,7 @@
+ 		.name = "camcc_camnoc_axi_clk_src",
+ 		.parent_data = camcc_parent_data_2,
+ 		.num_parents = ARRAY_SIZE(camcc_parent_data_2),
+-		.ops = &clk_rcg2_ops,
++		.ops = &clk_rcg2_shared_ops,
+ 	},
+ };
+ 
+@@ -835,7 +835,7 @@
+ 		.name = "camcc_fast_ahb_clk_src",
+ 		.parent_data = camcc_parent_data_0,
+ 		.num_parents = ARRAY_SIZE(camcc_parent_data_0),
+-		.ops = &clk_rcg2_ops,
++		.ops = &clk_rcg2_shared_ops,
+ 	},
+ };
+ 
+@@ -1370,7 +1370,7 @@
+ 		.name = "camcc_slow_ahb_clk_src",
+ 		.parent_data = camcc_parent_data_0,
+ 		.num_parents = ARRAY_SIZE(camcc_parent_data_0),
+-		.ops = &clk_rcg2_ops,
++		.ops = &clk_rcg2_shared_ops,
+ 	},
+ };
+ 
+diff --git a/drivers/firmware/qcom/qcom_qseecom.c b/drivers/firmware/qcom/qcom_qseecom.c
+--- a/drivers/firmware/qcom/qcom_qseecom.c
++++ b/drivers/firmware/qcom/qcom_qseecom.c
+@@ -85,6 +85,7 @@
+  */
+ static const struct qseecom_app_desc qcom_qseecom_apps[] = {
+ 	{ "qcom.tz.uefisecapp", "uefisecapp" },
++	{ "qcom.tz.tpm", "tpm" },
+ };
+ 
+ static int qcom_qseecom_probe(struct platform_device *qseecom_dev)
+diff --git a/drivers/firmware/qcom/qcom_scm.c b/drivers/firmware/qcom/qcom_scm.c
+--- a/drivers/firmware/qcom/qcom_scm.c
++++ b/drivers/firmware/qcom/qcom_scm.c
+@@ -2078,6 +2078,41 @@
+ 
+ 	return 0;
+ }
++
++/**
++ * qcom_scm_query_tpm_type() - Query the TPM backend type from TrustZone.
++ * @type: Returned TPM type.
++ *
++ * Invoke the Qualcomm SIP TPM info call. Success or failure of the secure call
++ * is returned by qcom_scm_call(); the TPM type is returned in result[0].
++ *
++ * Return: Zero on success, nonzero on failure.
++ */
++int qcom_scm_query_tpm_type(u64 *type)
++{
++	struct qcom_scm_desc desc = {
++		.owner = ARM_SMCCC_OWNER_SIP,
++		.svc = QCOM_SCM_SVC_TPM_INFO,
++		.cmd = QCOM_SCM_TPM_INFO_QUERY_TYPE,
++		.arginfo = QCOM_SCM_ARGS(0),
++	};
++	struct qcom_scm_res res = {};
++	int ret;
++
++	if (!type)
++		return -EINVAL;
++
++	if (!__scm)
++		return -EPROBE_DEFER;
++
++	ret = qcom_scm_call(__scm->dev, &desc, &res);
++	if (ret)
++		return ret;
++
++	*type = res.result[0];
++	return 0;
++}
++EXPORT_SYMBOL_GPL(qcom_scm_query_tpm_type);
+ 
+ #ifdef CONFIG_QCOM_QSEECOM
+ 
+diff --git a/drivers/firmware/qcom/qcom_scm.h b/drivers/firmware/qcom/qcom_scm.h
+--- a/drivers/firmware/qcom/qcom_scm.h
++++ b/drivers/firmware/qcom/qcom_scm.h
+@@ -141,6 +141,9 @@
+ #define QCOM_SCM_SVC_HDCP		0x11
+ #define QCOM_SCM_HDCP_INVOKE		0x01
+ 
++#define QCOM_SCM_SVC_TPM_INFO			0x20
++#define QCOM_SCM_TPM_INFO_QUERY_TYPE		0x01
++
+ #define QCOM_SCM_SVC_LMH			0x13
+ #define QCOM_SCM_LMH_LIMIT_PROFILE_CHANGE	0x01
+ #define QCOM_SCM_LMH_LIMIT_DCVSH		0x10
+diff --git a/drivers/firmware/qcom/qcom_tzmem.c b/drivers/firmware/qcom/qcom_tzmem.c
+--- a/drivers/firmware/qcom/qcom_tzmem.c
++++ b/drivers/firmware/qcom/qcom_tzmem.c
+@@ -72,9 +72,12 @@
+ #include <linux/firmware/qcom/qcom_scm.h>
+ #include <linux/of.h>
+ 
++#define QCOM_SHM_BRIDGE_SELF_OWNER BIT(1)
++#define QCOM_SHM_BRIDGE_SELF_OWNER_PERM_SHIFT 2
+ #define QCOM_SHM_BRIDGE_NUM_VM_SHIFT 9
+ 
+ static bool qcom_tzmem_using_shm_bridge;
++static u32 qcom_tzmem_vmid = QCOM_SCM_VMID_HLOS;
+ 
+ /* List of machines that are known to not support SHM bridge correctly. */
+ static const char *const qcom_tzmem_blacklist[] = {
+@@ -92,9 +95,15 @@
+ 	const char *const *platform;
+ 	int ret;
+ 
+-	for (platform = qcom_tzmem_blacklist; *platform; platform++) {
+-		if (of_machine_is_compatible(*platform))
+-			goto notsupp;
++	device_property_read_u32(qcom_tzmem_dev, "qcom,shm-bridge-vmid",
++				 &qcom_tzmem_vmid);
++
++	/* Skip blocklist if self owner is requested */
++	if (qcom_tzmem_vmid != QCOM_SCM_VMID_SELF_OWNER) {
++		for (platform = qcom_tzmem_blacklist; *platform; platform++) {
++			if (of_machine_is_compatible(*platform))
++				goto notsupp;
++		}
+ 	}
+ 
+ 	ret = qcom_scm_shm_bridge_enable(qcom_tzmem_dev);
+@@ -126,6 +135,7 @@
+ int qcom_tzmem_shm_bridge_create(phys_addr_t paddr, size_t size, u64 *handle)
+ {
+ 	u64 pfn_and_ns_perm, ipfn_and_s_perm, size_and_flags;
++	u64 ns_vmids = qcom_tzmem_vmid;
+ 	int ret;
+ 
+ 	if (!qcom_tzmem_using_shm_bridge)
+@@ -135,9 +145,15 @@
+ 	ipfn_and_s_perm = paddr | QCOM_SCM_PERM_RW;
+ 	size_and_flags = size | (1 << QCOM_SHM_BRIDGE_NUM_VM_SHIFT);
+ 
++	if (qcom_tzmem_vmid == QCOM_SCM_VMID_SELF_OWNER) {
++		size_and_flags = size | QCOM_SHM_BRIDGE_SELF_OWNER |
++				 (QCOM_SCM_PERM_RW << QCOM_SHM_BRIDGE_SELF_OWNER_PERM_SHIFT);
++		ns_vmids = 0;
++	}
++
++
+ 	ret = qcom_scm_shm_bridge_create(pfn_and_ns_perm, ipfn_and_s_perm,
+-					 size_and_flags, QCOM_SCM_VMID_HLOS,
+-					 handle);
++					 size_and_flags, ns_vmids, handle);
+ 	if (ret) {
+ 		dev_err(qcom_tzmem_dev,
+ 			"SHM Bridge failed: ret %d paddr 0x%pa, size %zu\n",
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c
+@@ -131,11 +131,12 @@
+ 		struct drm_dsc_config *dsc =
+ 		       dpu_encoder_get_dsc_config(phys_enc->parent);
+ 		/*
+-		 * TODO: replace drm_dsc_get_bpp_int with logic to handle
+-		 * fractional part if there is fraction
++		 * Compute the number of pclk cycles needed to transfer one
++		 * line of compressed data. Use DIV_ROUND_UP to match the
++		 * DSI host's timing calculation in dsi_timing_setup().
+ 		 */
+-		timing->width = timing->width * drm_dsc_get_bpp_int(dsc) /
+-				(dsc->bits_per_component * 3);
++		timing->width = DIV_ROUND_UP(timing->width * drm_dsc_get_bpp_int(dsc),
++					     dsc->bits_per_component * 3);
+ 		timing->xres = timing->width;
+ 		timing->dce_bytes_per_line = msm_dsc_get_bytes_per_line(dsc);
+ 	}
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_host.c b/drivers/gpu/drm/msm/dsi/dsi_host.c
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -2178,9 +2178,16 @@
+ 	 * mdss interrupt is generated in mdp core clock domain
+ 	 * mdp clock need to be enabled to receive dsi interrupt
+ 	 */
+-	pm_runtime_get_sync(&msm_host->pdev->dev);
+-	cfg_hnd->ops->link_clk_set_rate(msm_host);
+-	cfg_hnd->ops->link_clk_enable(msm_host);
++	/*
++	 * When video mode is streaming, clocks are already enabled and
++	 * OPP is set by the video enable path. Skip redundant clock ops
++	 * to avoid xfer_restore dropping OPP to 0 during active video.
++	 */
++	if (!(msm_host->power_on && msm_host->enabled)) {
++		pm_runtime_get_sync(&msm_host->pdev->dev);
++		cfg_hnd->ops->link_clk_set_rate(msm_host);
++		cfg_hnd->ops->link_clk_enable(msm_host);
++	}
+ 
+ 	/* TODO: vote for bus bandwidth */
+ 
+@@ -2210,9 +2217,10 @@
+ 		dsi_set_tx_power_mode(1, msm_host);
+ 
+ 	/* TODO: unvote for bus bandwidth */
+-
+-	cfg_hnd->ops->link_clk_disable(msm_host);
+-	pm_runtime_put(&msm_host->pdev->dev);
++	if (!(msm_host->power_on && msm_host->enabled)) {
++		cfg_hnd->ops->link_clk_disable(msm_host);
++		pm_runtime_put(&msm_host->pdev->dev);
++	}
+ }
+ 
+ int msm_dsi_host_cmd_tx(struct mipi_dsi_host *host,
+diff --git a/drivers/gpu/drm/msm/dsi/phy/dsi_phy.h b/drivers/gpu/drm/msm/dsi/phy/dsi_phy.h
+--- a/drivers/gpu/drm/msm/dsi/phy/dsi_phy.h
++++ b/drivers/gpu/drm/msm/dsi/phy/dsi_phy.h
+@@ -111,7 +111,6 @@
+ 	struct msm_dsi_dphy_timing timing;
+ 	const struct msm_dsi_phy_cfg *cfg;
+ 	void *tuning_cfg;
+-	void *pll_data;
+ 
+ 	enum msm_dsi_phy_usecase usecase;
+ 	bool regulator_ldo_mode;
+diff --git a/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c b/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c
+--- a/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c
++++ b/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c
+@@ -426,11 +426,8 @@
+ 	u32 data;
+ 
+ 	spin_lock_irqsave(&pll->pll_enable_lock, flags);
+-	if (pll->pll_enable_cnt++) {
+-		spin_unlock_irqrestore(&pll->pll_enable_lock, flags);
+-		WARN_ON(pll->pll_enable_cnt == INT_MAX);
+-		return;
+-	}
++	pll->pll_enable_cnt++;
++	WARN_ON(pll->pll_enable_cnt == INT_MAX);
+ 
+ 	data = readl(pll->phy->base + REG_DSI_7nm_PHY_CMN_CTRL_0);
+ 	data |= DSI_7nm_PHY_CMN_CTRL_0_PLL_SHUTDOWNB;
+@@ -876,7 +873,6 @@
+ 	spin_lock_init(&pll_7nm->pll_enable_lock);
+ 
+ 	pll_7nm->phy = phy;
+-	phy->pll_data = pll_7nm;
+ 
+ 	ret = pll_7nm_register(pll_7nm, phy->provided_clocks->hws);
+ 	if (ret) {
+@@ -965,10 +961,8 @@
+ 	u32 const delay_us = 5;
+ 	u32 const timeout_us = 1000;
+ 	struct msm_dsi_dphy_timing *timing = &phy->timing;
+-	struct dsi_pll_7nm *pll = phy->pll_data;
+ 	void __iomem *base = phy->base;
+ 	bool less_than_1500_mhz;
+-	unsigned long flags;
+ 	u32 vreg_ctrl_0, vreg_ctrl_1, lane_ctrl0;
+ 	u32 glbl_pemph_ctrl_0;
+ 	u32 glbl_str_swi_cal_sel_ctrl, glbl_hstx_str_ctrl_0;
+@@ -1090,13 +1084,10 @@
+ 		glbl_rescode_bot_ctrl = 0x3c;
+ 	}
+ 
+-	spin_lock_irqsave(&pll->pll_enable_lock, flags);
+-	pll->pll_enable_cnt = 1;
+ 	/* de-assert digital and pll power down */
+ 	data = DSI_7nm_PHY_CMN_CTRL_0_DIGTOP_PWRDN_B |
+ 	       DSI_7nm_PHY_CMN_CTRL_0_PLL_SHUTDOWNB;
+ 	writel(data, base + REG_DSI_7nm_PHY_CMN_CTRL_0);
+-	spin_unlock_irqrestore(&pll->pll_enable_lock, flags);
+ 
+ 	/* Assert PLL core reset */
+ 	writel(0x00, base + REG_DSI_7nm_PHY_CMN_PLL_CNTRL);
+@@ -1209,9 +1200,7 @@
+ 
+ static void dsi_7nm_phy_disable(struct msm_dsi_phy *phy)
+ {
+-	struct dsi_pll_7nm *pll = phy->pll_data;
+ 	void __iomem *base = phy->base;
+-	unsigned long flags;
+ 	u32 data;
+ 
+ 	DBG("");
+@@ -1238,11 +1227,8 @@
+ 	writel(data, base + REG_DSI_7nm_PHY_CMN_CTRL_0);
+ 	writel(0, base + REG_DSI_7nm_PHY_CMN_LANE_CTRL0);
+ 
+-	spin_lock_irqsave(&pll->pll_enable_lock, flags);
+-	pll->pll_enable_cnt = 0;
+ 	/* Turn off all PHY blocks */
+ 	writel(0x00, base + REG_DSI_7nm_PHY_CMN_CTRL_0);
+-	spin_unlock_irqrestore(&pll->pll_enable_lock, flags);
+ 
+ 	/* make sure phy is turned off */
+ 	wmb();
+diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
+--- a/drivers/input/touchscreen/Kconfig
++++ b/drivers/input/touchscreen/Kconfig
+@@ -1415,3 +1415,8 @@
+ 	  module will be called himax_hx83112b.
+ 
+ endif
++
++config TOUCHSCREEN_HIMAX_GAOKUN_RIGHT
++	tristate "Himax Gaokun SPI touchscreen (right-0903)"
++	depends on SPI && INPUT && DRM_PANEL
++	select INPUT_MT
+diff --git a/drivers/input/touchscreen/Makefile b/drivers/input/touchscreen/Makefile
+--- a/drivers/input/touchscreen/Makefile
++++ b/drivers/input/touchscreen/Makefile
+@@ -119,3 +119,5 @@
+ obj-$(CONFIG_TOUCHSCREEN_IQS7211)	+= iqs7211.o
+ obj-$(CONFIG_TOUCHSCREEN_ZINITIX)	+= zinitix.o
+ obj-$(CONFIG_TOUCHSCREEN_HIMAX_HX83112B)	+= himax_hx83112b.o
++
++obj-$(CONFIG_TOUCHSCREEN_HIMAX_GAOKUN_RIGHT) += himax-gaokun-right.o
+diff --git a/drivers/input/touchscreen/himax-gaokun-right.c b/drivers/input/touchscreen/himax-gaokun-right.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/input/touchscreen/himax-gaokun-right.c
+@@ -0,0 +1,1199 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Himax SPI Driver
++ * based on Himax hx83102j
++ *
++ * Copyright (C) 2019,2024 Himax Corporation.
++ * Copyright (C) 2026 Pengyu Luo <mitltlatltl@gmail.com>
++ */
++
++/* TODO: DT parse: vdd_dig & avdd_analog */
++
++#define DEBUG
++#include<linux/sort.h>
++#include<linux/dev_printk.h>
++
++#include <linux/delay.h>
++#include <linux/input/mt.h>
++#include <linux/input/touchscreen.h>
++#include <linux/interrupt.h>
++#include <linux/module.h>
++#include <linux/spi/spi.h>
++#include <linux/math.h>
++
++#include <drm/drm_panel.h>
++
++#define HIMAX_BUS_RETRY					3
++/* SPI bus read header length */
++#define HIMAX_BUS_R_HLEN				3U
++/* SPI bus write header length */
++#define HIMAX_BUS_W_HLEN				2U
++/* TP SRAM address size and data size */
++#define HIMAX_REG_SZ					4U
++#define HIMAX_MAX_RX					60U
++#define HIMAX_MAX_TX					40U
++#define X_SCALE						9U
++#define Y_SCALE						1U
++#define X_TOTAL						25600U
++#define Y_TOTAL						16000U
++#define X_TOTAL_REV (X_SCALE * X_TOTAL * (HIMAX_MAX_RX + 1) / HIMAX_MAX_RX)
++#define Y_TOTAL_REV (Y_SCALE * Y_TOTAL * (HIMAX_MAX_TX + 1) / HIMAX_MAX_TX)
++#define DX					(X_TOTAL_REV / HIMAX_MAX_RX)
++#define DY					(Y_TOTAL_REV / HIMAX_MAX_TX)
++#define HIMAX_MAX_TOUCH					10
++#define HIMAX_HX83121A_SAFE_MODE_PASSWORD		0x9527
++/* FIXME: this is for hx83120j, ~4928 for hx83121a 40 * 60 * 2 + 128 */
++#define HIMAX_HX83121A_STACK_SIZE			128U
++#define HIMAX_HX83121A_FULL_STACK_SZ \
++(HIMAX_HX83121A_STACK_SIZE + \
++(2 + HIMAX_MAX_RX * HIMAX_MAX_TX + \
++HIMAX_MAX_TX + HIMAX_MAX_RX) * 2)
++
++/* Clear 4 bytes data */
++#define HIMAX_DATA_CLEAR				0x00000000
++/* AHB register addresses */
++#define HIMAX_AHB_ADDR_BYTE_0				0x00
++#define HIMAX_AHB_ADDR_RDATA_BYTE_0			0x08
++#define HIMAX_AHB_ADDR_ACCESS_DIRECTION			0x0c
++#define HIMAX_AHB_ADDR_BURST				0x0d
++#define HIMAX_AHB_ADDR_CONTI				0x13
++#define HIMAX_AHB_ADDR_EVENT_STACK			0x30
++#define HIMAX_AHB_ADDR_PSW_LB				0x31
++
++/* AHB register values/commands */
++#define HIMAX_AHB_CMD_ACCESS_DIRECTION_READ		0x00
++#define HIMAX_AHB_CMD_CONTI				0x31
++#define HIMAX_AHB_CMD_LEAVE_SAFE_MODE			0x0000
++#define HIMAX_AHB_CMD_BURST				0x10
++/* AMBA AHB Protocol Specification 3.6 */
++#define HIMAX_AHB_BURST_INCR4				0b11
++
++/* DSRAM flag addresses */
++#define HIMAX_DSRAM_ADDR_2ND_FLASH_RELOAD		0x100072c0
++#define HIMAX_DSRAM_ADDR_FLASH_RELOAD			0x10007f00
++#define HIMAX_DSRAM_ADDR_SORTING_MODE_EN		0x10007f04
++#define HIMAX_DSRAM_ADDR_SET_NFRAME			0x10007294
++
++/* dsram flag data */
++#define HIMAX_DSRAM_DATA_FW_RELOAD_DONE			0x000072c0
++/* hx83121a-specific register/dsram flags/data */
++#define HIMAX_HX83121A_DSRAM_ADDR_RAW_OUT_SEL		0x100072ec
++#define HIMAX_HX83121A_FLASH_SIZE			(255 * 1024)
++
++/* hardware register addresses */
++#define HIMAX_REG_ADDR_RELOAD_STATUS			0x80050000
++#define HIMAX_REG_ADDR_RELOAD_CRC32_RESULT		0x80050018
++#define HIMAX_REG_ADDR_RELOAD_ADDR_FROM			0x80050020
++#define HIMAX_REG_ADDR_RELOAD_ADDR_CMD_BEAT		0x80050028
++#define HIMAX_REG_ADDR_CTRL_FW				0x9000005c
++#define HIMAX_REG_ADDR_FW_STATUS			0x900000a8
++#define HIMAX_REG_ADDR_ICID				0x900000d0
++
++/* hardware reg data/flags */
++#define HIMAX_REG_DATA_FW_STATE_RUNNING			0x05
++#define HIMAX_REG_DATA_FW_STATE_SAFE_MODE		0x0c
++#define HIMAX_REG_DATA_FW_RE_INIT			0x00
++#define HIMAX_REG_DATA_FW_GO_SAFEMODE			0xa5
++#define HIMAX_REG_DATA_FW_IN_SAFEMODE			0x87
++#define HIMAX_REG_DATA_RELOAD_DONE			0x01
++#define HIMAX_REG_DATA_RELOAD_PASSWORD			0x99
++
++/* SPI CS setup time */
++#define HIMAX_SPI_CS_SETUP_TIME				300
++/* HIMAX SPI function select, 1st byte of any SPI command sequence */
++#define HIMAX_SPI_FUNCTION_READ				0xf3
++#define HIMAX_SPI_FUNCTION_WRITE			0xf2
++/* TODO: f4 for huawei? */
++
++union himax_dword_data {
++	u32 dword;
++	u16 word[2];
++	u8 byte[4];
++};
++
++struct himax_ts_data {
++	u8 *xfer_buf;
++	u32 spi_xfer_max_sz;
++	u32 xfer_buf_sz;
++	/* lock for irq_save */
++	spinlock_t irq_lock;
++	bool irq_enabled;
++	bool incr4_en;
++	struct gpio_desc *gpiod_rst;
++	struct device *dev;
++	struct spi_device *spi;
++	struct input_dev *input_dev;
++	struct touchscreen_properties props;
++	struct drm_panel_follower panel_follower;
++};
++
++/*
++ * 1st byte is the spi function select, 2nd byte is the command belong to the
++ * spi function and 3rd byte is the dummy byte for IC to process the command.
++ */
++static int himax_spi_read(struct himax_ts_data *ts, u8 cmd, u8 *buf, u32 len)
++{
++	int ret;
++	int retry_cnt;
++	struct spi_message msg;
++
++	memset(ts->xfer_buf, 0, HIMAX_BUS_R_HLEN + len);
++	ts->xfer_buf[0] = HIMAX_SPI_FUNCTION_READ;
++	ts->xfer_buf[1] = cmd;
++	ts->xfer_buf[2] = 0x00;
++
++	struct spi_transfer xfer = {
++		.len = HIMAX_BUS_R_HLEN + len,
++		.tx_buf = ts->xfer_buf,
++		.rx_buf = ts->xfer_buf,
++		.cs_change = 0,
++	};
++
++	spi_message_init(&msg);
++	spi_message_add_tail(&xfer, &msg);
++
++	for (retry_cnt = 0; retry_cnt < HIMAX_BUS_RETRY; retry_cnt++) {
++		ret = spi_sync(ts->spi, &msg);
++		if (ret < 0)
++			// TODO: 确定一般会不会出现重试的情况
++			dev_err(&ts->spi->dev, "spi transfer error, %d, retry: %d", ret, retry_cnt);
++		else
++			break;
++	}
++
++	if (ret < 0)
++		return ret;
++
++	memcpy(buf, ts->xfer_buf + HIMAX_BUS_R_HLEN, len);
++	return 0;
++}
++
++/*
++ * 1st byte is the spi function select and 2nd byte is the command belong to the
++ * spi function. Else is the data to write.
++ */
++static int himax_spi_write(struct himax_ts_data *ts, u8 *tx_buf, u32 len)
++{
++	int ret;
++	struct spi_message msg;
++	struct spi_transfer xfer = {
++		.tx_buf = tx_buf,
++		.len = len,
++		.cs_change = 0,
++	};
++
++	spi_message_init(&msg);
++	spi_message_add_tail(&xfer, &msg);
++
++	ret = spi_sync(ts->spi, &msg);
++	if (ret < 0) {
++		dev_err(&ts->spi->dev, "spi transfer error, %d", ret);
++		return ret;
++	}
++
++	return 0;
++}
++
++/* TODO: merge into spi_write, fix len (=len(data)) */
++static int himax_write(struct himax_ts_data *ts, u8 cmd, u8 *addr, const u8 *data, u32 len)
++{
++	/** @len: len(data) + len(addr) */
++	u8 *ptr = ts->xfer_buf;
++
++	memset(ts->xfer_buf, 0, len + HIMAX_BUS_W_HLEN);
++	ts->xfer_buf[0] = HIMAX_SPI_FUNCTION_WRITE;
++	ts->xfer_buf[1] = cmd;
++	ptr += HIMAX_BUS_W_HLEN;
++	len += HIMAX_BUS_W_HLEN;
++
++	if (addr) {
++		memcpy(ptr, addr, 4);
++		ptr += 4;
++	}
++
++	if (data)
++		memcpy(ptr, data, len - (ptr - ts->xfer_buf));
++
++	return himax_spi_write(ts, ts->xfer_buf, len);
++}
++
++/**
++ * himax_mcu_set_burst_mode() - Set burst mode for MCU
++ * @ts: Himax touch screen data
++ * @auto_add_4_byte: Enable auto add 4 byte mode (INCR4)
++ *
++ * Set burst mode for MCU, which is used for read/write data from/to MCU.
++ * HIMAX_AHB_ADDR_CONTI config the IC to take data continuously,
++ * HIMAX_AHB_ADDR_BURST config the IC to auto increment the address by 4 byte when
++ * each 4 bytes read/write.
++ *
++ * Return: 0 on success, negative error code on failure
++ */
++/* TODO: disable for spi 2000 data */
++static int himax_mcu_set_burst_mode(struct himax_ts_data *ts, bool auto_add_4_byte)
++{
++	int ret;
++	u8 tmp;
++
++	if (auto_add_4_byte == ts->incr4_en)
++		return 0;
++
++	tmp = HIMAX_AHB_CMD_CONTI;
++	ret = himax_write(ts, HIMAX_AHB_ADDR_CONTI, NULL, &tmp, 1);
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: write ahb_addr_conti failed\n", __func__);
++		return ret;
++	}
++
++	tmp = HIMAX_AHB_CMD_BURST;
++	if (auto_add_4_byte)
++		tmp |= HIMAX_AHB_BURST_INCR4;;
++
++	ret = himax_write(ts, HIMAX_AHB_ADDR_BURST, NULL, &tmp, 1);
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: write ahb_addr_burst failed\n", __func__);
++		return ret;
++	}
++
++	ts->incr4_en = auto_add_4_byte;
++	return 0;
++}
++
++/*
++ * Read data from himax internal registers and SRAM
++ *
++ * We write the (SRAM)address to AHB register to tell where to read. Then set
++ * the access direction to read, and read the data from AHB register.
++ */
++static int himax_mcu_register_read(struct himax_ts_data *ts, u32 addr, u8 *buf, u32 len)
++{
++	int ret;
++	u8 direction_switch = HIMAX_AHB_CMD_ACCESS_DIRECTION_READ;
++	union himax_dword_data target_addr;
++
++	ret = himax_mcu_set_burst_mode(ts, len > HIMAX_REG_SZ);
++	if (ret)
++		return ret;
++
++	target_addr.dword = cpu_to_le32(addr);
++	ret = himax_write(ts, HIMAX_AHB_ADDR_BYTE_0, target_addr.byte, NULL, 4);
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: write ahb_addr_byte_0 failed\n", __func__);
++		return ret;
++	}
++
++	ret = himax_write(ts, HIMAX_AHB_ADDR_ACCESS_DIRECTION, NULL,
++				  &direction_switch, 1);
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: write ahb_addr_access_direction failed\n", __func__);
++		return ret;
++	}
++
++	ret = himax_spi_read(ts, HIMAX_AHB_ADDR_RDATA_BYTE_0, buf, len);
++	if (ret < 0)
++		dev_err(ts->dev, "%s: read ahb_addr_rdata_byte_0 failed\n", __func__);
++
++	return ret;
++}
++
++/* Write the internal (SRAM)address and data to AHB register */
++static int himax_mcu_register_write(struct himax_ts_data *ts, u32 addr, const u8 *buf, u32 len)
++{
++	int ret;
++
++	union himax_dword_data target_addr;
++
++	ret = himax_mcu_set_burst_mode(ts, len > HIMAX_REG_SZ);
++	if (ret)
++		return ret;
++
++	target_addr.dword = cpu_to_le32(addr);
++	ret = himax_write(ts, HIMAX_AHB_ADDR_BYTE_0,
++				target_addr.byte, buf, len + HIMAX_REG_SZ);
++	if (ret < 0)
++		dev_err(ts->dev, "%s: write ahb_addr_byte_0 failed\n", __func__);
++
++	return ret;
++}
++
++/*
++ * Wakeup IC bus interface. The IC may enter sleep mode and need to wakeup
++ * before any operation.
++ */
++static int himax_mcu_interface_on(struct himax_ts_data *ts)
++{
++	int ret;
++	u8 byte, byte2;
++	u32 retry_cnt;
++	const u32 burst_retry_limit = 10;
++
++	/* Read a dummy register to wake up BUS. */
++	ret = himax_spi_read(ts, HIMAX_AHB_ADDR_RDATA_BYTE_0, &byte, 1);
++	if (ret < 0)
++		goto err;
++
++	for (retry_cnt = 0; retry_cnt < burst_retry_limit; retry_cnt++) {
++		ret = himax_mcu_set_burst_mode(ts, false);
++		if (ret < 0)
++			goto err;
++
++		/* Check cmd */
++		ret = himax_spi_read(ts, HIMAX_AHB_ADDR_CONTI, &byte, 1);
++		if (ret < 0)
++			goto err;
++
++		ret = himax_spi_read(ts, HIMAX_AHB_ADDR_BURST, &byte2, 1);
++		if (ret < 0)
++			goto err;
++
++		if (byte == HIMAX_AHB_CMD_CONTI && byte2 == HIMAX_AHB_CMD_BURST)
++			return 0;
++
++		usleep_range(1000, 1100);
++	}
++
++err:
++	dev_err(ts->dev, "%s: failed!\n", __func__);
++
++	return -EIO;
++}
++
++static void himax_pin_reset(struct himax_ts_data *ts)
++{
++	/* display reset gpio must be deasserted */
++	gpiod_set_value_cansleep(ts->gpiod_rst, 1);
++	usleep_range(5000, 5100);
++	gpiod_set_value_cansleep(ts->gpiod_rst, 0);
++	/* after ~5ms, reload flash, which will take ~55ms */
++	usleep_range(60000, 60100);
++	ts->incr4_en = true; /* default value after reset */
++}
++
++static void himax_int_enable(struct himax_ts_data *ts, bool enable)
++{
++	unsigned long flags;
++
++	spin_lock_irqsave(&ts->irq_lock, flags);
++	if (enable && ts->irq_enabled == false)
++		enable_irq(ts->spi->irq);
++	else if (!enable && ts->irq_enabled == true)
++		disable_irq_nosync(ts->spi->irq);
++	ts->irq_enabled = enable;
++	spin_unlock_irqrestore(&ts->irq_lock, flags);
++}
++
++static void himax_mcu_ic_reset(struct himax_ts_data *ts, bool int_off)
++{
++	if (int_off)
++		himax_int_enable(ts, false);
++
++	himax_pin_reset(ts);
++
++	if (int_off)
++		himax_int_enable(ts, true);
++}
++
++/**
++ * sense_off: stop MCU
++ * 1. request FW to stop
++ * 2. enter safe mode (and reset TCON for some ICs).
++ *
++ * @check_en: confirm if the FW is stopped
++ */
++static int himax_sense_off(struct himax_ts_data *ts, bool check_en)
++{
++	int ret;
++	u32 retry_cnt;
++	const u32 stop_fw_retry_limit = 35;
++	const u32 enter_safe_mode_retry_limit = 5;
++	const union himax_dword_data safe_mode = {
++		.dword = cpu_to_le32(HIMAX_REG_DATA_FW_GO_SAFEMODE)
++	};
++	union himax_dword_data data;
++
++	dev_info(ts->dev, "%s: check %s\n", __func__, check_en ? "True" : "False");
++	if (!check_en)
++		goto without_check;
++
++	for (retry_cnt = 0; retry_cnt < stop_fw_retry_limit; retry_cnt++) {
++		if (retry_cnt == 0 ||
++		    (data.byte[0] != HIMAX_REG_DATA_FW_GO_SAFEMODE &&
++		    data.byte[0] != HIMAX_REG_DATA_FW_RE_INIT &&
++		    data.byte[0] != HIMAX_REG_DATA_FW_IN_SAFEMODE)) {
++			ret = himax_mcu_register_write(ts, HIMAX_REG_ADDR_CTRL_FW,
++						       safe_mode.byte, 4);
++			if (ret < 0) {
++				dev_err(ts->dev, "%s: stop FW failed\n", __func__);
++				return ret;
++			}
++		}
++		usleep_range(10000, 11000);
++
++		ret = himax_mcu_register_read(ts, HIMAX_REG_ADDR_FW_STATUS, data.byte, 4);
++		if (ret < 0) {
++			dev_err(ts->dev, "%s: read central state failed\n", __func__);
++			return ret;
++		}
++		if (data.byte[0] != HIMAX_REG_DATA_FW_STATE_RUNNING) {
++			dev_info(ts->dev, "%s: Do not need wait FW, Status = 0x%02X!\n", __func__,
++			  data.byte[0]);
++			break;
++		}
++
++		ret = himax_mcu_register_read(ts, HIMAX_REG_ADDR_CTRL_FW, data.byte, 4);
++		if (ret < 0) {
++			dev_err(ts->dev, "%s: read ctrl FW failed\n", __func__);
++			return ret;
++		}
++		if (data.byte[0] == HIMAX_REG_DATA_FW_IN_SAFEMODE)
++			break;
++	}
++
++	if (data.byte[0] != HIMAX_REG_DATA_FW_IN_SAFEMODE)
++		dev_warn(ts->dev, "%s: Failed to stop FW!\n", __func__);
++
++without_check:
++	for (retry_cnt = 0; retry_cnt < enter_safe_mode_retry_limit; retry_cnt++) {
++		/* set Enter safe mode : 0x31 ==> 0x9527 */
++		data.word[0] = cpu_to_le16(HIMAX_HX83121A_SAFE_MODE_PASSWORD);
++		ret = himax_write(ts, HIMAX_AHB_ADDR_PSW_LB, NULL, data.byte, 2);
++		if (ret < 0) {
++			dev_err(ts->dev, "%s: enter safe mode failed\n", __func__);
++			return ret;
++		}
++
++		/* Check enter_save_mode */
++		ret = himax_mcu_register_read(ts, HIMAX_REG_ADDR_FW_STATUS, data.byte, 4);
++		if (ret < 0) {
++			dev_err(ts->dev, "%s: read central state failed\n", __func__);
++			return ret;
++		}
++
++		if (data.byte[0] == HIMAX_REG_DATA_FW_STATE_SAFE_MODE) {
++			dev_info(ts->dev, "%s: Safe mode entered\n", __func__);
++			return 0;
++		}
++
++		usleep_range(10000, 10100); // TODO: 5ms for HX83121?
++		himax_pin_reset(ts);
++	}
++	dev_err(ts->dev, "%s: failed!\n", __func__);
++
++	return -EIO;
++}
++
++/**
++ * @sw_reset: true for software reset, false for hardware reset
++ *     true: write IC to leave safe mode
++ *     false: pin reset
++ *
++ * make MCU restart running the FW
++ */
++static int himax_sense_on(struct himax_ts_data *ts, bool sw_reset)
++{
++	int ret;
++	const union himax_dword_data re_init = {
++		.dword = cpu_to_le32(HIMAX_REG_DATA_FW_RE_INIT)
++	};
++	union himax_dword_data data;
++
++	ret = himax_mcu_interface_on(ts);
++	if (ret < 0)
++		return ret;
++
++	ret = himax_mcu_register_write(ts, HIMAX_REG_ADDR_CTRL_FW, re_init.byte, 4);
++	if (ret < 0)
++		return ret;
++	usleep_range(10000, 11000);
++	if (!sw_reset) {
++		himax_mcu_ic_reset(ts, false);
++	} else {
++		data.word[0] = cpu_to_le16(HIMAX_AHB_CMD_LEAVE_SAFE_MODE);
++		ret = himax_write(ts, HIMAX_AHB_ADDR_PSW_LB, NULL, data.byte, 2);
++		if (ret < 0)
++			return ret;
++	}
++	/* TODO: more operations for other himax ICs */
++
++	return 0;
++}
++
++static int hx83121a_chip_detect(struct himax_ts_data *ts)
++{
++	int ret;
++	union himax_dword_data data;
++
++	ret = himax_mcu_interface_on(ts);
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: read ahb_addr_conti failed\n", __func__);
++		return ret;
++	}
++
++	/* sense off the MCU to prevent bus conflict when reading the IC ID. */
++	ret = himax_sense_off(ts, false);
++	if (ret)
++		return ret;
++
++	ret = himax_mcu_register_read(ts, HIMAX_REG_ADDR_ICID, data.byte, 4);
++	if (ret) {
++		dev_err(ts->dev, "%s: Read IC ID Fail\n", __func__);
++		return ret;
++	}
++
++	/*
++	 * For suffix > F, it should be (data.byte[1] & 0xF) + 'A' or 'a'
++	 * e.g. hx83102j: 0x83102900
++	 */
++	data.dword = le32_to_cpu(data.dword) >> 8;
++	dev_info(ts->dev, "Detected IC HX%06X\n", data.dword);
++
++	return data.dword == 0x83121a ? 0 : -ENODEV;
++}
++
++/* -------------------------------------------------------------------------- */
++/* input 子系统 */
++
++static int himax_input_dev_config(struct himax_ts_data *ts)
++{
++	struct input_dev *input_dev;
++	int ret;
++
++	input_dev = devm_input_allocate_device(ts->dev);
++	if (!input_dev)
++		return -ENOMEM;
++
++	ts->input_dev = input_dev;
++	input_set_drvdata(input_dev, ts);
++
++	input_dev->name = "Himax Capacitive TouchScreen";
++	input_dev->phys = "input/ts";
++	input_dev->id.bustype = BUS_SPI;
++
++	/* Standard capacitive touchscreen fuzz (8) to absorb static finger deformation
++	 * during clicks, preventing libinput from treating 10px drifts as swipes. */
++	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X,
++			     0, SZ_64K - 1, 8, 0);
++	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y,
++			     0, SZ_64K - 1, 8, 0);
++	// TODO: 根据触点附近数据集建模得到
++	// input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
++	input_set_abs_params(ts->input_dev, ABS_MT_PRESSURE, 0, 4095, 0, 0);
++	touchscreen_parse_properties(ts->input_dev, true, &ts->props);
++
++	ret = input_mt_init_slots(ts->input_dev, HIMAX_MAX_TOUCH,
++				  INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED|
++				  INPUT_MT_TRACK);
++	if (ret)
++		return ret;
++
++	ret = input_register_device(ts->input_dev);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++static void himax_report_state(struct himax_ts_data *ts,
++			       struct input_mt_pos *pos,
++			       u16 *strengths,
++			       int touch_num)
++{
++	int i, slots[HIMAX_MAX_TOUCH];
++
++	/*
++	 * Although it is continuous, without transformation first, in-kernel
++	 * MT track won't be happy.
++	 */
++	for (i = 0; i < touch_num; i++) {
++		touchscreen_set_mt_pos(&pos[i], &ts->props, pos[i].x, pos[i].y);
++	}
++
++	/* Set dmax=0 to make fast swipe smooth */
++	int ret = input_mt_assign_slots(ts->input_dev, slots, pos, touch_num, 0);
++	if (ret < 0) {
++		dev_warn_ratelimited(ts->dev, "input_mt_assign_slots failed: %d\n", ret);
++		return;
++	}
++
++	for (i = 0; i < touch_num; i++) {
++		if (slots[i] >= HIMAX_MAX_TOUCH)
++			continue;
++		input_mt_slot(ts->input_dev, slots[i]);
++		input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, true);
++
++		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, pos[i].x);
++		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, pos[i].y);
++		input_report_abs(ts->input_dev, ABS_MT_PRESSURE, strengths[i]);
++		// input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, );
++	}
++
++	input_mt_sync_frame(ts->input_dev);
++	input_sync(ts->input_dev);
++}
++
++/* -------------------------------------------------------------------------- */
++/* 中断处理 */
++
++static int hx83121a_gaokun_read_event_stack(struct himax_ts_data *ts)
++{
++	u32 i;
++	int ret;
++	const u32 max_trunk_sz = ts->spi_xfer_max_sz - HIMAX_BUS_R_HLEN;
++	u8 *buf = ts->xfer_buf;
++
++	memset(ts->xfer_buf, 0x00, ts->xfer_buf_sz);
++	size_t length = HIMAX_HX83121A_FULL_STACK_SZ; /* FIXME: use actual size. */
++
++	for (i = 0; i < length; i += max_trunk_sz) {
++		ret = himax_spi_read(ts, HIMAX_AHB_ADDR_EVENT_STACK, buf + i,
++				 min(length - i, max_trunk_sz));
++		if (ret) {
++			dev_err(ts->dev, "%s: read event stack error!\n", __func__);
++			return ret;
++		}
++	}
++
++	return 0;
++}
++
++#define EQUILIBRIUM	0x8000
++#define DOWN_THRESHOLD	0x100
++#define UP_THRESHOLD	0x1000
++#define VALID(val) ((EQUILIBRIUM + DOWN_THRESHOLD < val ) & (val < EQUILIBRIUM + UP_THRESHOLD))
++
++static u16 simple_filter(int val)
++{
++	/* 触控区貌似只会大于 EQUILIBRIUM (0x8000) */
++	return VALID(val) ? val - EQUILIBRIUM : 0;
++}
++
++/* TODO: 可以创建一个 sysfs 用于和用户空间 IO, 分析, 处理, 数据 等等 */
++static void dump_frame(u16 *ptr, bool raw)
++{
++	char buf[1024];
++
++	pr_warn("Frame start\n");
++	for (int i = 0, offset; i < 2400 + 60; i++) { // 60 x 40 + 60
++		if ( i % 60 == 0) {
++			if (i)
++				pr_info("%s\n", buf);
++
++			offset = sprintf(buf, "%04x:", i);
++		}
++		offset += sprintf(buf + offset, " %04x", raw ? ptr[i] : simple_filter(ptr[i]));
++	}
++}
++
++/*
++ * array 2D to 1D 且扩展处理边界外一圈
++ * 即不在 tx_max * rx_max 范围内返回 0
++ */
++#define ARRACC(arr, tx, rx) le16_to_cpup((arr) + (tx) * HIMAX_MAX_RX + (rx))
++static u16 dd2d(u16 *arr, int tx, int rx)
++{
++	return (tx >= 0) & (tx < HIMAX_MAX_TX) & (rx >= 0) & (rx < HIMAX_MAX_RX)
++	       ? simple_filter(ARRACC(arr, tx, rx)) : 0;
++}
++
++#define OFST 4
++
++#define HIMAX_MAX_PEAK_CANDIDATES 30
++
++struct himax_peak {
++	s16 x, y;
++	u16 strength;
++};
++
++static int himax_peak_cmp_desc(const void *a, const void *b)
++{
++	return (int)((const struct himax_peak *)b)->strength -
++	       (int)((const struct himax_peak *)a)->strength;
++}
++
++#define DIST(pos0, pos1) \
++( abs((pos0)->x - (pos1)->x) + abs((pos0)->y - (pos1)->y) )
++
++static void raw2rxtx(u16 *arr, struct input_mt_pos *pos, int *cnt)
++{
++	struct himax_peak candidates[HIMAX_MAX_PEAK_CANDIDATES];
++	int ncand = 0;
++	int i, j, k;
++	u16 vc, vl, vr, vu, vd, vlu, vld, vru, vrd;
++	*cnt = 0;
++
++	/* 收集所有局部极大值（最多30个候选） 30 = 10 指单聚点三峰 */
++	for (i = 0; i < HIMAX_MAX_TX; ++i) {
++		for (j = 0; j < HIMAX_MAX_RX; ++j) {
++			if (ncand >= HIMAX_MAX_PEAK_CANDIDATES)
++				goto sort;
++
++			vc = dd2d(arr, i, j);
++			if (!vc)
++				continue;
++
++			vl = dd2d(arr, i, j - 1);
++			vr = dd2d(arr, i, j + 1);
++			vu = dd2d(arr, i - 1, j);
++			vd = dd2d(arr, i + 1, j);
++
++			vlu = dd2d(arr, i - 1, j - 1);
++			vld = dd2d(arr, i + 1, j - 1);
++			vru = dd2d(arr, i - 1, j + 1);
++			vrd = dd2d(arr, i + 1, j + 1);
++
++			if (vc >= vl && vc >= vr && vc >= vu && vc >= vd &&
++			    vc >= vlu && vc > vru && vc >= vld && vc >= vrd) {
++				/* horizontal rx: j-idx, vertical tx: i-idx */
++				candidates[ncand].y = i;
++				candidates[ncand].x = j;
++				candidates[ncand].strength = vc;
++				ncand++;
++				j++; /* the right one must not be a peak */
++			}
++		}
++	}
++
++sort:
++	if (ncand == 0)
++		return;
++
++	/* 按强度降序排列：最强的峰优先 */
++	sort(candidates, ncand, sizeof(*candidates), himax_peak_cmp_desc, NULL);
++
++	/*
++	 * 从最强开始取，跳过与已选点距离 < 3 的候选（近邻去重）。
++	 * 简单起见, 这里用 L1 距离
++	 */
++	for (i = 0; i < ncand && *cnt < HIMAX_MAX_TOUCH; i++) {
++		bool too_close = false;
++
++		for (k = 0; k < *cnt; k++) {
++			if (DIST(candidates + i, pos + k) < 3) {
++				too_close = true;
++				break;
++			}
++		}
++
++		if (!too_close) {
++			pos[*cnt].x = candidates[i].x;
++			pos[*cnt].y = candidates[i].y;
++			(*cnt)++;
++		}
++	}
++}
++
++static int rxtx2xy(u16 *arr, struct input_mt_pos *pos, u16 *strengths_out, int cnt)
++{
++	int i, out = 0;
++	int tx, rx;
++	u32 vl, vr, vc, vu, vd, vlu, vld, vru, vrd, vsum, temp;
++
++	/*
++	 * Simplified formula for weighted average, tweaked to reduce round
++	 * error.
++	 */
++	for (i = 0; i < cnt; ++i) {
++		tx = pos[i].y;
++		rx = pos[i].x;
++		vc = dd2d(arr, tx, rx);
++
++		/*
++		 * 弱触点跳过，不写入输出，有效计数不增
++		 * 如果不过滤这些点, 会导致指甲也能触发, 且滑动轨迹测试时会剧烈抖动
++		 * (画直线, 看点散落的轨迹图, 两个触控通道间来回拉扯, 尤其是加大接触面)
++		 */
++		if (vc < 800)
++			continue;
++
++		vl = dd2d(arr, tx, rx - 1);
++		vr = dd2d(arr, tx, rx + 1);
++		vu = dd2d(arr, tx - 1, rx);
++		vd = dd2d(arr, tx + 1, rx);
++
++#ifdef FIVE_POINT
++		vlu = vld = vru = vrd = 0;
++#else
++		vlu = dd2d(arr, tx - 1, rx - 1);
++		vld = dd2d(arr, tx + 1, rx - 1);
++		vru = dd2d(arr, tx - 1, rx + 1);
++		vrd = dd2d(arr, tx + 1, rx + 1);
++#endif
++
++		vsum = vl + vr + vc + vu + vd + vlu + vld + vru + vrd;
++
++		temp = rx * vsum + vru + vr + vrd - vlu - vl - vld;
++		pos[out].x = mult_frac(temp, DX, X_SCALE * vsum);
++
++		temp = tx * vsum + vld + vd + vrd - vlu - vu - vru;
++		pos[out].y = mult_frac(temp, DY, Y_SCALE * vsum);
++
++		strengths_out[out] = vc;
++
++		pr_debug("calculate x=%d, y=%d (rx=%d, tx=%d, vc=%u(vl=%u, vr=%u, vu=%u, vd=%u))\n",
++			 pos[out].x, pos[out].y, rx, tx, vc, vl, vr, vu, vd);
++		out++;
++	}
++	return out;
++}
++
++static void get_m(u16 *arr, u32 *val, u32 *tx, u32 *rx, bool max)
++{
++	u16 tmp = EQUILIBRIUM, ti, tj, walk, i, j;
++
++	for (i = 0; i < HIMAX_MAX_TX; ++i)
++		for (j = 0; j < HIMAX_MAX_RX; ++j) {
++			walk = ARRACC(arr, i, j);
++			if ( (walk > tmp) * max + (walk < tmp) * !max ) {
++				tmp = walk;
++				ti = i;
++				tj = j;
++			}
++		}
++
++	*val = tmp;
++	*tx = ti;
++	*rx = tj;
++}
++
++static bool fast_check(u16 *arr)
++{
++	u32 tx, rx, val;
++	/* 屏幕右下角的最后一个触控通道 永远是 0x0000, 重置成默认值, 方便后续的处理 */
++	arr[0] = EQUILIBRIUM;
++
++	get_m(arr, &val, &tx, &rx, 1);
++	/* Drop the frame if the max is an isolated point or out of bound */
++	return VALID(val) && (dd2d(arr, tx - 1, rx) || dd2d(arr, tx + 1, rx) ||
++	       dd2d(arr, tx, rx - 1) || dd2d(arr, tx, rx + 1));
++}
++
++static irqreturn_t himax_ts_thread(int irq, void *data)
++{
++	struct himax_ts_data *ts = data;
++	u16 *ptr = (void *)ts->xfer_buf + OFST;
++	struct input_mt_pos pos[HIMAX_MAX_TOUCH];
++	u16 final_strengths[HIMAX_MAX_TOUCH];
++	int cnt = 0;
++
++	if (hx83121a_gaokun_read_event_stack(ts)) {
++		dev_err(ts->dev, "failed to get touch data!\n");
++		himax_mcu_ic_reset(ts, true);
++		return IRQ_NONE;
++	}
++
++	/*
++	 * TODO: 3 in and 3 out: for the stability, report when continuous
++	 * 3 touch down events, release when 3 touch up events.
++	 */
++	if (fast_check((void *)ptr)) {
++		raw2rxtx(ptr, pos, &cnt);
++		cnt = rxtx2xy(ptr, pos, final_strengths, cnt);
++	}
++
++	himax_report_state(ts, pos, final_strengths, cnt);
++	return IRQ_HANDLED;
++}
++
++static int himax_mcu_assign_sorting_mode(struct himax_ts_data *ts, u8 *tmp_data_in)
++{
++	int ret;
++	u8 rdata[4];
++	u32 retry_cnt;
++	const u32 retry_limit = 3;
++
++	for (retry_cnt = 0; retry_cnt < retry_limit; retry_cnt++) {
++		ret = himax_mcu_register_write(ts, HIMAX_DSRAM_ADDR_SORTING_MODE_EN,
++					       tmp_data_in, HIMAX_REG_SZ);
++		if (ret < 0) {
++			dev_err(ts->dev, "%s: write sorting mode fail\n", __func__);
++			return ret;
++		}
++		usleep_range(1000, 1100);
++		ret = himax_mcu_register_read(ts, HIMAX_DSRAM_ADDR_SORTING_MODE_EN,
++					      rdata, HIMAX_REG_SZ);
++		if (ret < 0) {
++			dev_err(ts->dev, "%s: read sorting mode fail\n", __func__);
++			return ret;
++		}
++
++		if (!memcmp(tmp_data_in, rdata, HIMAX_REG_SZ))
++			return 0;
++	}
++	dev_err(ts->dev, "%s: fail to write sorting mode\n", __func__);
++
++	return -EINVAL;
++}
++
++/*
++ * Tell FW not to reload data from flash. It needs to be
++ * set before FW start running.
++ */
++static int himax_disable_fw_reload(struct himax_ts_data *ts, bool disable)
++{
++	union himax_dword_data data = {
++		/*
++		 * HIMAX_DSRAM_ADDR_FLASH_RELOAD: 0x10007f00
++		 * 0x10007f00 <= 0x9aa9, let FW know there's no flash
++		 *            <= 0x5aa5, there has flash, but not reload
++		 *            <= 0x0000, there has flash, and reload
++		 */
++		.dword = cpu_to_le32(disable ? 0x5aa5 : 0x0000) // TODO: handle it for zf
++	};
++
++	return himax_mcu_register_write(ts, HIMAX_DSRAM_ADDR_FLASH_RELOAD, data.byte, 4);
++}
++
++static int himax_mcu_power_on_init(struct himax_ts_data *ts)
++{
++	int ret;
++	u32 retry_cnt;
++	const u32 retry_limit = 30;
++	union himax_dword_data data;
++
++	data.dword = cpu_to_le32(HIMAX_DATA_CLEAR);
++	/* Initial sorting mode password to normal mode */
++	ret = himax_mcu_assign_sorting_mode(ts, data.byte); // 不必要的步骤对于 gaokun3
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: assign sorting mode fail\n", __func__);
++		return ret;
++	}
++
++	/* N frame initial */ // 不必要的步骤对于 gaokun3
++	/* reset N frame back to default value 1 for normal mode */
++	data.dword = cpu_to_le32(1);
++	ret = himax_mcu_register_write(ts, HIMAX_DSRAM_ADDR_SET_NFRAME, data.byte, 4);
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: set N frame fail\n", __func__);
++		return ret;
++	}
++
++	/* Initial FW reload status */ // 必要的步骤
++	data.dword = cpu_to_le32(HIMAX_DATA_CLEAR);
++	ret = himax_mcu_register_write(ts, HIMAX_DSRAM_ADDR_2ND_FLASH_RELOAD, data.byte, 4);
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: initial FW reload status fail\n", __func__);
++		return ret;
++	}
++
++	ret = himax_sense_on(ts, false); // 必要的步骤
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: sense on fail\n", __func__);
++		return ret;
++	}
++
++	dev_info(ts->dev, "%s: waiting for FW reload data\n", __func__);
++	for (retry_cnt = 0; retry_cnt < retry_limit; retry_cnt++) {
++		ret = himax_mcu_register_read(ts, HIMAX_DSRAM_ADDR_2ND_FLASH_RELOAD, data.byte, 4);
++		if (ret < 0) {
++			dev_err(ts->dev, "%s: read FW reload status fail\n", __func__);
++			return ret;
++		}
++
++		// use all 4 bytes to compare
++		if (le32_to_cpu(data.dword) == HIMAX_DSRAM_DATA_FW_RELOAD_DONE) {
++			dev_info(ts->dev, "%s: FW reload done\n", __func__);
++			break;
++		}
++		dev_info(ts->dev, "%s: wait FW reload %u times\n", __func__, retry_cnt + 1);
++
++		msleep(30);
++	}
++
++	if (retry_cnt == retry_limit) {
++		dev_err(ts->dev, "%s: FW reload fail!\n", __func__);
++		return -EINVAL;
++	}
++
++	/* RawOut select set, must be 0xf6, fuck you huawei */
++	data.dword = cpu_to_le32(0xf6);
++	ret = himax_mcu_register_write(ts, HIMAX_HX83121A_DSRAM_ADDR_RAW_OUT_SEL, data.byte, 4);
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: set RawOut select fail\n", __func__);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int himax_mcu_check_crc(struct himax_ts_data *ts, u32 start_addr,
++			       int reload_length, u32 *crc_result)
++{
++	int ret;
++	int length = reload_length / HIMAX_REG_SZ;
++	u32 retry_cnt;
++	const u32 retry_limit = 100;
++	union himax_dword_data data, addr;
++
++	addr.dword = cpu_to_le32(start_addr);
++	ret = himax_mcu_register_write(ts, HIMAX_REG_ADDR_RELOAD_ADDR_FROM, addr.byte, 4);
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: write reload start address fail\n", __func__);
++		return ret;
++	}
++
++	data.word[1] = cpu_to_le16(HIMAX_REG_DATA_RELOAD_PASSWORD);
++	data.word[0] = cpu_to_le16(length);
++	ret = himax_mcu_register_write(ts, HIMAX_REG_ADDR_RELOAD_ADDR_CMD_BEAT, data.byte, 4);
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: write reload length and password fail!\n", __func__);
++		return ret;
++	}
++
++	ret = himax_mcu_register_read(ts, HIMAX_REG_ADDR_RELOAD_ADDR_CMD_BEAT, data.byte, 4);
++	if (ret < 0) {
++		dev_err(ts->dev, "%s: read reload length and password fail!\n", __func__);
++		return ret;
++	}
++
++	if (le16_to_cpu(data.word[0]) != length) {
++		dev_err(ts->dev, "%s: length verify failed!\n", __func__);
++		return -EINVAL;
++	}
++
++	for (retry_cnt = 0; retry_cnt < retry_limit; retry_cnt++) {
++		ret = himax_mcu_register_read(ts, HIMAX_REG_ADDR_RELOAD_STATUS, data.byte, 4);
++		if (ret < 0) {
++			dev_err(ts->dev, "%s: read reload status fail!\n", __func__);
++			return ret;
++		}
++
++		data.dword = le32_to_cpu(data.dword);
++		if ((data.byte[0] & HIMAX_REG_DATA_RELOAD_DONE) != HIMAX_REG_DATA_RELOAD_DONE) {
++			ret = himax_mcu_register_read(ts, HIMAX_REG_ADDR_RELOAD_CRC32_RESULT,
++						      data.byte, HIMAX_REG_SZ);
++			if (ret < 0) {
++				dev_err(ts->dev, "%s: read crc32 result fail!\n", __func__);
++				return ret;
++			}
++			*crc_result = le32_to_cpu(data.dword);
++			return 0;
++		}
++
++		dev_info(ts->dev, "%s: Waiting for HW ready!\n", __func__);
++		msleep(30);
++	}
++
++	dev_err(ts->dev, "%s: read FW status fail\n", __func__);
++	return -EINVAL;
++}
++
++/* FIXME: timings are not matched well. The FW may not work properly after resume */
++static int himax_spi_panel_follower_resume(struct drm_panel_follower *follower)
++{
++	struct himax_ts_data *ts = container_of(follower, struct himax_ts_data,
++						panel_follower);
++	u32 crc_hw;
++	int ret;
++
++	himax_pin_reset(ts);
++	himax_disable_fw_reload(ts, 1); /* reload once only when resume */
++
++	ret = hx83121a_chip_detect(ts);
++	if (ret) {
++		dev_err(ts->dev, "%s: IC detect failed\n", __func__);
++		return ret;
++	}
++
++	ret = himax_mcu_check_crc(ts, 0, HIMAX_HX83121A_FLASH_SIZE, &crc_hw);
++	if (ret || crc_hw) {
++		dev_err(ts->dev, "hw crc failed, fw broken, fix it on windows\n");
++		return ret;
++	}
++
++	himax_mcu_power_on_init(ts);
++	himax_int_enable(ts, true);
++	return 0;
++}
++
++static int himax_spi_panel_follower_suspend(struct drm_panel_follower *follower)
++{
++	struct himax_ts_data *ts = container_of(follower, struct himax_ts_data,
++						panel_follower);
++	himax_int_enable(ts, false);
++	himax_sense_off(ts, true);
++	/* HACK: until we can power down it, and notify fw at that time */
++	himax_disable_fw_reload(ts, 0);
++	gpiod_set_value_cansleep(ts->gpiod_rst, 1);
++	return 0;
++}
++
++static const struct
++drm_panel_follower_funcs himax_spi_panel_follower_prepare_funcs = {
++	.panel_prepared = himax_spi_panel_follower_resume,
++	.panel_unpreparing = himax_spi_panel_follower_suspend,
++};
++
++/* -------------------------------------------------------------------------- */
++static int himax_spi_probe(struct spi_device *spi)
++{
++	int ret;
++	struct himax_ts_data *ts;
++
++	ts = devm_kzalloc(&spi->dev, sizeof(struct himax_ts_data), GFP_KERNEL);
++	if (!ts)
++		return -ENOMEM;
++
++	ts->dev = &spi->dev;
++
++	ts->gpiod_rst = devm_gpiod_get_optional(ts->dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(ts->gpiod_rst)) {
++		dev_err(ts->dev, "%s: gpio-rst value is not valid\n", __func__);
++		return -EIO;
++	}
++
++	spi->bits_per_word = 8;
++	spi->mode = SPI_MODE_3;
++	spi->cs_setup.value = HIMAX_SPI_CS_SETUP_TIME;
++
++	ts->spi = spi;
++	ts->spi_xfer_max_sz = HIMAX_HX83121A_FULL_STACK_SZ;
++	ts->xfer_buf_sz = ts->spi_xfer_max_sz;
++	ts->xfer_buf = devm_kzalloc(ts->dev, ts->xfer_buf_sz, GFP_KERNEL);
++	if (!ts->xfer_buf)
++		return -ENOMEM;
++
++	spin_lock_init(&ts->irq_lock);
++	dev_set_drvdata(&spi->dev, ts);
++	spi_set_drvdata(spi, ts);
++
++	ret = himax_input_dev_config(ts);
++	if (ret) {
++		dev_err(ts->dev, "input device set failed\n");
++		return ret;
++	}
++
++	ret = devm_request_threaded_irq(ts->dev, ts->spi->irq, NULL,
++					himax_ts_thread, IRQF_ONESHOT |
++					IRQF_NO_AUTOEN, "himax-spi-ts", ts);
++	if (ret) {
++		dev_err(ts->dev, "request irq failed. ret=%d\n", ret);
++		return ret;
++	}
++
++	ts->panel_follower.funcs = &himax_spi_panel_follower_prepare_funcs;
++	return devm_drm_panel_add_follower(ts->dev, &ts->panel_follower);
++}
++
++static const struct spi_device_id himax_spi_ids[] = {
++	{ .name = "hx83121a-ts" },
++	{ },
++};
++MODULE_DEVICE_TABLE(spi, himax_spi_ids);
++
++static const struct of_device_id himax_spi_of_match[] = {
++	{ .compatible = "himax,hx83121a-ts" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, himax_spi_of_match);
++
++static struct spi_driver himax_spi_driver = {
++	.driver = {
++		.name = "himax-spi",
++		.of_match_table = himax_spi_of_match,
++	},
++	.probe = himax_spi_probe,
++	.id_table = himax_spi_ids,
++};
++module_spi_driver(himax_spi_driver);
++
++MODULE_LICENSE("GPL");
+diff --git a/drivers/media/i2c/hi846.c b/drivers/media/i2c/hi846.c
+--- a/drivers/media/i2c/hi846.c
++++ b/drivers/media/i2c/hi846.c
+@@ -219,8 +219,8 @@
+ 	/* Horizontal timing size */
+ 	u32 llp;
+ 
+-	/* Link frequency needed for this resolution */
+-	u8 link_freq_index;
++	/* PLL configuration for 4-lane link at this resolution */
++	u16 pll_cfg_4lane;
+ 
+ 	u16 fps;
+ 
+@@ -1027,6 +1027,106 @@
+ 	{HI846_REG_TG_ENABLE,			0x0100},
+ };
+ 
++static const struct hi846_reg mode_3264x1836_config[] = {
++	{HI846_REG_MODE_SELECT,			0x0000},
++	{HI846_REG_Y_ODD_INC_FOBP,		0x1111},
++	{HI846_REG_Y_ODD_INC_VACT,		0x1111},
++	{HI846_REG_Y_ADDR_START_VACT_H,		0x0172},
++	{HI846_REG_Y_ADDR_END_VACT_H,		0x089d},
++	{HI846_REG_UNKNOWN_005C,		0x2101},
++	{HI846_REG_FLL,				0x09de},
++	{HI846_REG_LLP,				0x0ed8},
++	{HI846_REG_BINNING_MODE,		0x0022},
++	{HI846_REG_HBIN_MODE,			0x0000},
++	{HI846_REG_UNKNOWN_0A24,		0x0000},
++	{HI846_REG_X_START_H,			0x0000},
++	{HI846_REG_X_OUTPUT_SIZE_H,		0x0cc0},
++	{HI846_REG_Y_OUTPUT_SIZE_H,		0x072c},
++	{HI846_REG_EXPOSURE,			0x09d8},
++
++	/* For OTP */
++	{HI846_REG_UNKNOWN_021C,		0x0001},
++	{HI846_REG_UNKNOWN_021E,		0x0235},
++
++	{HI846_REG_ISP_EN_H,			0x014a},
++	{HI846_REG_UNKNOWN_0418,		0x023e},
++	{HI846_REG_UNKNOWN_0B02,		0xe04d},
++	{HI846_REG_UNKNOWN_0B10,		0x6821},
++	{HI846_REG_UNKNOWN_0B12,		0x0120},
++	{HI846_REG_UNKNOWN_0B14,		0x0001},
++	{HI846_REG_UNKNOWN_2008,		0x38fd},
++	{HI846_REG_UNKNOWN_326E,		0x0000},
++};
++
++static const struct hi846_reg mode_3264x1836_mipi_4lane[] = {
++	{HI846_REG_UNKNOWN_0900,		0x0300},
++	{HI846_REG_MIPI_TX_OP_MODE,		0xc319},
++	{HI846_REG_UNKNOWN_0914,		0xc109},
++	{HI846_REG_TCLK_PREPARE,		0x061a},
++	{HI846_REG_UNKNOWN_0918,		0x0407},
++	{HI846_REG_THS_ZERO,			0x0a0b},
++	{HI846_REG_TCLK_POST,			0x0e08},
++	{HI846_REG_UNKNOWN_091E,		0x0a00},
++	{HI846_REG_UNKNOWN_090C,		0x0427},
++	{HI846_REG_UNKNOWN_090E,		0x0059},
++	{HI846_REG_UNKNOWN_0954,		0x0089},
++	{HI846_REG_UNKNOWN_0956,		0x0000},
++	{HI846_REG_UNKNOWN_0958,		0xca80},
++	{HI846_REG_UNKNOWN_095A,		0x9240},
++	{HI846_REG_PLL_CFG_MIPI2_H,		0x4124},
++	{HI846_REG_TG_ENABLE,			0x0100},
++};
++
++static const struct hi846_reg mode_3264x2448_config[] = {
++	{HI846_REG_MODE_SELECT,			0x0000},
++	{HI846_REG_Y_ODD_INC_FOBP,		0x1111},
++	{HI846_REG_Y_ODD_INC_VACT,		0x1111},
++	{HI846_REG_Y_ADDR_START_VACT_H,		0x0040},
++	{HI846_REG_Y_ADDR_END_VACT_H,		0x09cf},
++	{HI846_REG_UNKNOWN_005C,		0x2101},
++	{HI846_REG_FLL,				0x09de},
++	{HI846_REG_LLP,				0x0ed8},
++	{HI846_REG_BINNING_MODE,		0x0022},
++	{HI846_REG_HBIN_MODE,			0x0000},
++	{HI846_REG_UNKNOWN_0A24,		0x0000},
++	{HI846_REG_X_START_H,			0x0000},
++	{HI846_REG_X_OUTPUT_SIZE_H,		0x0cc0},
++	{HI846_REG_Y_OUTPUT_SIZE_H,		0x0990},
++	{HI846_REG_EXPOSURE,			0x09d8},
++
++	/* For OTP */
++	{HI846_REG_UNKNOWN_021C,		0x0001},
++	{HI846_REG_UNKNOWN_021E,		0x0235},
++
++	{HI846_REG_ISP_EN_H,			0x014a},
++	{HI846_REG_UNKNOWN_0418,		0x0000},
++	{HI846_REG_UNKNOWN_0B02,		0xe04d},
++	{HI846_REG_UNKNOWN_0B10,		0x6821},
++	{HI846_REG_UNKNOWN_0B12,		0x0120},
++	{HI846_REG_UNKNOWN_0B14,		0x0001},
++	{HI846_REG_UNKNOWN_2008,		0x38fd},
++	{HI846_REG_UNKNOWN_326E,		0x0000},
++};
++
++static const struct hi846_reg mode_3264x2448_mipi_4lane[] = {
++	{HI846_REG_UNKNOWN_0900,		0x0300},
++	{HI846_REG_MIPI_TX_OP_MODE,		0xc319},
++	{HI846_REG_UNKNOWN_0914,		0xc109},
++	{HI846_REG_TCLK_PREPARE,		0x061a},
++	{HI846_REG_UNKNOWN_0918,		0x0407},
++	{HI846_REG_THS_ZERO,			0x0a0b},
++	{HI846_REG_TCLK_POST,			0x0e08},
++	{HI846_REG_UNKNOWN_091E,		0x0a00},
++	{HI846_REG_UNKNOWN_090C,		0x0427},
++	{HI846_REG_UNKNOWN_090E,		0x0059},
++	{HI846_REG_UNKNOWN_0954,		0x0089},
++	{HI846_REG_UNKNOWN_0956,		0x0000},
++	{HI846_REG_UNKNOWN_0958,		0xca80},
++	{HI846_REG_UNKNOWN_095A,		0x9240},
++	{HI846_REG_PLL_CFG_MIPI2_H,		0x4124},
++	{HI846_REG_TG_ENABLE,			0x0100},
++};
++
+ static const char * const hi846_test_pattern_menu[] = {
+ 	"Disabled",
+ 	"Solid Colour",
+@@ -1040,13 +1140,6 @@
+ 	"Resolution Pattern",
+ };
+ 
+-#define FREQ_INDEX_640	0
+-#define FREQ_INDEX_1280	1
+-static const s64 hi846_link_freqs[] = {
+-	[FREQ_INDEX_640] = 80000000,
+-	[FREQ_INDEX_1280] = 200000000,
+-};
+-
+ static const struct hi846_reg_list hi846_init_regs_list_2lane = {
+ 	.num_of_regs = ARRAY_SIZE(hi846_init_2lane),
+ 	.regs = hi846_init_2lane,
+@@ -1061,7 +1154,7 @@
+ 	{
+ 		.width = 640,
+ 		.height = 480,
+-		.link_freq_index = FREQ_INDEX_640,
++		.pll_cfg_4lane = 0x4924, /* HI846_REG_PLL_CFG_MIPI2_H */
+ 		.fps = 120,
+ 		.frame_len = 631,
+ 		.llp = HI846_LINE_LENGTH,
+@@ -1086,7 +1179,7 @@
+ 	{
+ 		.width = 1280,
+ 		.height = 720,
+-		.link_freq_index = FREQ_INDEX_1280,
++		.pll_cfg_4lane = 0x4924, /* HI846_REG_PLL_CFG_MIPI2_H */
+ 		.fps = 90,
+ 		.frame_len = 842,
+ 		.llp = HI846_LINE_LENGTH,
+@@ -1112,7 +1205,7 @@
+ 	{
+ 		.width = 1632,
+ 		.height = 1224,
+-		.link_freq_index = FREQ_INDEX_1280,
++		.pll_cfg_4lane = 0x4924, /* HI846_REG_PLL_CFG_MIPI2_H */
+ 		.fps = 30,
+ 		.frame_len = 2526,
+ 		.llp = HI846_LINE_LENGTH,
+@@ -1134,7 +1227,57 @@
+ 			.width = 1632 * 2,
+ 			.height = 1224 * 2,
+ 		},
+-	}
++	},
++	{
++		.width = 3264,
++		.height = 1836,
++		.pll_cfg_4lane = 0x4124, /* HI846_REG_PLL_CFG_MIPI2_H */
++		.fps = 30,
++		.frame_len = 2526,
++		.llp = HI846_LINE_LENGTH,
++		.reg_list_config = {
++			.num_of_regs = ARRAY_SIZE(mode_3264x1836_config),
++			.regs = mode_3264x1836_config,
++		},
++		.reg_list_2lane = {
++			.num_of_regs = 0,
++		},
++		.reg_list_4lane = {
++			.num_of_regs = ARRAY_SIZE(mode_3264x1836_mipi_4lane),
++			.regs = mode_3264x1836_mipi_4lane,
++		},
++		.crop = {
++			.left = 0x46,
++			.top = 0x172,
++			.width = 3264,
++			.height = 1836,
++		},
++	},
++	{
++		.width = 3264,
++		.height = 2448,
++		.pll_cfg_4lane = 0x4124, /* HI846_REG_PLL_CFG_MIPI2_H */
++		.fps = 30,
++		.frame_len = 2526,
++		.llp = HI846_LINE_LENGTH,
++		.reg_list_config = {
++			.num_of_regs = ARRAY_SIZE(mode_3264x2448_config),
++			.regs = mode_3264x2448_config,
++		},
++		.reg_list_2lane = {
++			.num_of_regs = 0,
++		},
++		.reg_list_4lane = {
++			.num_of_regs = ARRAY_SIZE(mode_3264x2448_mipi_4lane),
++			.regs = mode_3264x2448_mipi_4lane,
++		},
++		.crop = {
++			.left = 0x46,
++			.top = 0x40,
++			.width = 3264,
++			.height = 2448,
++		},
++	},
+ };
+ 
+ struct hi846_datafmt {
+@@ -1161,7 +1304,6 @@
+ 	struct v4l2_ctrl_handler ctrl_handler;
+ 	u8 nr_lanes;
+ 
+-	struct v4l2_ctrl *link_freq;
+ 	struct v4l2_ctrl *pixel_rate;
+ 	struct v4l2_ctrl *vblank;
+ 	struct v4l2_ctrl *hblank;
+@@ -1169,6 +1311,8 @@
+ 
+ 	struct mutex mutex; /* protect cur_mode, streaming and chip access */
+ 	const struct hi846_mode *cur_mode;
++	const struct hi846_mode *supported_modes;
++	int num_modes;
+ 	bool streaming;
+ };
+ 
+@@ -1192,21 +1336,37 @@
+ 	return NULL;
+ }
+ 
+-static inline u8 hi846_get_link_freq_index(struct hi846 *hi846)
+-{
+-	return hi846->cur_mode->link_freq_index;
+-}
+-
+-static u64 hi846_get_link_freq(struct hi846 *hi846)
+-{
+-	u8 index = hi846_get_link_freq_index(hi846);
+-
+-	return hi846_link_freqs[index];
++static u64
++hi846_get_link_freq(struct hi846 *hi846, const struct hi846_mode *cur_mode)
++{
++	u16 cfg = cur_mode->pll_cfg_4lane;
++	u64 mclk = clk_get_rate(hi846->clock);
++
++	/* NOTE: 6, 7 actually map to 8, 10, but the used won't be that big */
++	u8 post_div1 = 1 + FIELD_GET(GENMASK(10, 8), cfg);
++	u8 post_div2 = 1 << FIELD_GET(GENMASK(12, 11), cfg);
++
++	/*
++	 * HI846_REG_PLL_CFG_MIPI1_H = 0x025a, it is fixed in listed modes
++	 * [11:8]: 0x02 => pre_div = 3
++	 * [7:0]: 0x5a => multiplier = 90
++	 */
++	u64 link_freq = mclk / 3 * 90 / post_div1 / post_div2;
++	/*
++	 * for shared modes, since lane count is halved for 2-lane, then getting
++	 * link_freq doubled to match the same data rate. Since 720x480 is
++	 * 2-lane only(i.e. reg_list_4lane.num_of_regs == 0), no pll cfg for
++	 * 4-lane, the pll cfg is actually for 2-lane, so use the cfg as is.
++	 */
++	if (hi846->nr_lanes == 2 && cur_mode->reg_list_4lane.num_of_regs)
++		link_freq *= 2;
++
++	return link_freq;
+ }
+ 
+ static u64 hi846_calc_pixel_rate(struct hi846 *hi846)
+ {
+-	u64 link_freq = hi846_get_link_freq(hi846);
++	u64 link_freq = hi846_get_link_freq(hi846, hi846->cur_mode);
+ 	u64 pixel_rate = link_freq * 2 * hi846->nr_lanes;
+ 
+ 	do_div(pixel_rate, HI846_RGB_DEPTH);
+@@ -1271,6 +1431,8 @@
+ 	if (*err < 0)
+ 		return;
+ 
++	*err = 0;
++
+ 	put_unaligned_be16(reg, buf);
+ 	put_unaligned_be16(val, buf + 2);
+ 	ret = i2c_master_send(client, buf, sizeof(buf));
+@@ -1423,14 +1585,6 @@
+ 		return ret;
+ 
+ 	ctrl_hdlr->lock = &hi846->mutex;
+-
+-	hi846->link_freq =
+-		v4l2_ctrl_new_int_menu(ctrl_hdlr, &hi846_ctrl_ops,
+-				       V4L2_CID_LINK_FREQ,
+-				       ARRAY_SIZE(hi846_link_freqs) - 1,
+-				       0, hi846_link_freqs);
+-	if (hi846->link_freq)
+-		hi846->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+ 
+ 	hi846->pixel_rate =
+ 		v4l2_ctrl_new_std(ctrl_hdlr, &hi846_ctrl_ops,
+@@ -1501,10 +1655,10 @@
+ 	u64 frame_length;
+ 	int ret = 0;
+ 	int dummy_lines;
+-	u64 link_freq = hi846_get_link_freq(hi846);
++	u64 link_freq = hi846_get_link_freq(hi846, hi846->cur_mode);
+ 
+ 	dev_dbg(&client->dev, "%s: link freq: %llu\n", __func__,
+-		hi846_get_link_freq(hi846));
++		link_freq);
+ 
+ 	do_div(link_freq, fps);
+ 	frame_length = link_freq;
+@@ -1733,8 +1887,8 @@
+ 	hi846->fmt = fmt;
+ 
+ 	hi846->cur_mode =
+-		v4l2_find_nearest_size(supported_modes,
+-				       ARRAY_SIZE(supported_modes),
++		v4l2_find_nearest_size(hi846->supported_modes,
++				       hi846->num_modes,
+ 				       width, height, mf->width, mf->height);
+ 	dev_dbg(&client->dev, "%s: found mode: %dx%d\n", __func__,
+ 		hi846->cur_mode->width, hi846->cur_mode->height);
+@@ -1747,7 +1901,6 @@
+ 	mf->code = HI846_MEDIA_BUS_FORMAT;
+ 	mf->field = V4L2_FIELD_NONE;
+ 
+-	__v4l2_ctrl_s_ctrl(hi846->link_freq, hi846_get_link_freq_index(hi846));
+ 	__v4l2_ctrl_s_ctrl_int64(hi846->pixel_rate,
+ 				 hi846_calc_pixel_rate(hi846));
+ 
+@@ -1819,8 +1972,11 @@
+ 				 struct v4l2_subdev_frame_size_enum *fse)
+ {
+ 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-
+-	if (fse->pad || fse->index >= ARRAY_SIZE(supported_modes))
++	struct hi846 *hi846 = to_hi846(sd);
++	const struct hi846_mode *supported_modes = hi846->supported_modes;
++
++
++	if (fse->pad || fse->index >= hi846->num_modes)
+ 		return -EINVAL;
+ 
+ 	if (fse->code != HI846_MEDIA_BUS_FORMAT) {
+@@ -1948,16 +2104,17 @@
+ static s64 hi846_check_link_freqs(struct hi846 *hi846,
+ 				  struct v4l2_fwnode_endpoint *ep)
+ {
+-	const s64 *freqs = hi846_link_freqs;
+-	int freqs_count = ARRAY_SIZE(hi846_link_freqs);
++	int freqs_count = hi846->num_modes;
++	u64 link_freq;
+ 	int i, j;
+ 
+ 	for (i = 0; i < freqs_count; i++) {
++		link_freq = hi846_get_link_freq(hi846, &hi846->supported_modes[i]);
+ 		for (j = 0; j < ep->nr_of_link_frequencies; j++)
+-			if (freqs[i] == ep->link_frequencies[j])
++			if (link_freq == ep->link_frequencies[j])
+ 				break;
+ 		if (j == ep->nr_of_link_frequencies)
+-			return freqs[i];
++			return link_freq;
+ 	}
+ 
+ 	return 0;
+@@ -1996,6 +2153,13 @@
+ 
+ 	hi846->nr_lanes = bus_cfg.bus.mipi_csi2.num_data_lanes;
+ 
++	hi846->supported_modes = supported_modes;
++	hi846->num_modes = ARRAY_SIZE(supported_modes) - 2;
++	if (hi846->nr_lanes == 4) {
++		hi846->supported_modes = supported_modes + 1;
++		hi846->num_modes = ARRAY_SIZE(supported_modes) - 1;
++	}
++
+ 	if (!bus_cfg.nr_of_link_frequencies) {
+ 		dev_err(dev, "link-frequency property not found in DT\n");
+ 		ret = -EINVAL;
+@@ -2085,7 +2249,7 @@
+ 	if (ret)
+ 		goto err_power_off;
+ 
+-	hi846->cur_mode = &supported_modes[0];
++	hi846->cur_mode = &hi846->supported_modes[0];
+ 
+ 	ret = hi846_init_controls(hi846);
+ 	if (ret) {
+diff --git a/drivers/media/i2c/ov13b10.c b/drivers/media/i2c/ov13b10.c
+--- a/drivers/media/i2c/ov13b10.c
++++ b/drivers/media/i2c/ov13b10.c
+@@ -7,6 +7,7 @@
+ #include <linux/gpio/consumer.h>
+ #include <linux/i2c.h>
+ #include <linux/module.h>
++#include <linux/of.h>
+ #include <linux/pm_runtime.h>
+ #include <linux/regulator/consumer.h>
+ #include <media/v4l2-ctrls.h>
+@@ -717,6 +718,7 @@
+ 	struct clk *img_clk;
+ 	struct regulator_bulk_data supplies[ARRAY_SIZE(ov13b10_supply_names)];
+ 	struct gpio_desc *reset;
++	bool gaokun3;
+ 
+ 	/* V4L2 Controls */
+ 	struct v4l2_ctrl *link_freq;
+@@ -1190,9 +1192,58 @@
+ 		return -EIO;
+ 	}
+ 
++	dev_info(ov13b->dev, "chip id 0x%06x identified\n", val);
+ 	ov13b->identified = true;
+ 
+ 	return 0;
++}
++
++/* Restore the shared AVDD/display rail's idle voltage range. */
++static void ov13b10_gaokun3_release_avdd(struct ov13b10 *ov13b)
++{
++	int ret;
++
++	ret = regulator_set_voltage(ov13b->supplies[1].consumer,
++				    1800000, 2800000);
++	if (ret)
++		dev_warn(ov13b->dev, "failed to release AVDD voltage vote: %d\n", ret);
++}
++
++/* Windows CAMS_RES_QRD: reset -> rails -> 1ms -> reset release -> 10ms -> MCLK. */
++static int ov13b10_gaokun3_power_on(struct ov13b10 *ov13b)
++{
++	int ret;
++
++	gpiod_set_value_cansleep(ov13b->reset, 1);
++
++	/* L2B also supplies display VDDI, which idles at 1.8V. */
++	ret = regulator_set_voltage(ov13b->supplies[1].consumer,
++				    2800000, 2800000);
++	if (ret)
++		return ret;
++
++	ret = regulator_bulk_enable(ARRAY_SIZE(ov13b10_supply_names),
++				    ov13b->supplies);
++	if (ret)
++		goto err_voltage;
++
++	usleep_range(1000, 1500);
++	gpiod_set_value_cansleep(ov13b->reset, 0);
++	usleep_range(10000, 11000);
++
++	ret = clk_prepare_enable(ov13b->img_clk);
++	if (ret)
++		goto err_supplies;
++
++	usleep_range(5000, 5500);
++	return 0;
++
++err_supplies:
++	gpiod_set_value_cansleep(ov13b->reset, 1);
++	regulator_bulk_disable(ARRAY_SIZE(ov13b10_supply_names), ov13b->supplies);
++err_voltage:
++	ov13b10_gaokun3_release_avdd(ov13b);
++	return ret;
+ }
+ 
+ static int ov13b10_power_off(struct device *dev)
+@@ -1206,6 +1257,9 @@
+ 
+ 	clk_disable_unprepare(ov13b10->img_clk);
+ 
++	if (ov13b10->gaokun3)
++		ov13b10_gaokun3_release_avdd(ov13b10);
++
+ 	return 0;
+ }
+ 
+@@ -1214,6 +1268,9 @@
+ 	struct v4l2_subdev *sd = dev_get_drvdata(dev);
+ 	struct ov13b10 *ov13b10 = to_ov13b10(sd);
+ 	int ret;
++
++	if (ov13b10->gaokun3)
++		return ov13b10_gaokun3_power_on(ov13b10);
+ 
+ 	ret = clk_prepare_enable(ov13b10->img_clk);
+ 	if (ret < 0) {
+@@ -1596,6 +1653,7 @@
+ 		return -ENOMEM;
+ 
+ 	ov13b->dev = &client->dev;
++	ov13b->gaokun3 = of_machine_is_compatible("huawei,gaokun3");
+ 
+ 	/* Check HW config */
+ 	ret = ov13b10_check_hwcfg(ov13b);
+@@ -1705,11 +1763,18 @@
+ MODULE_DEVICE_TABLE(acpi, ov13b10_acpi_ids);
+ #endif
+ 
++static const struct of_device_id ov13b10_of_ids[] = {
++	{ .compatible = "ovti,ov13b10" },
++	{ /* sentinel */ }
++};
++MODULE_DEVICE_TABLE(of, ov13b10_of_ids);
++
+ static struct i2c_driver ov13b10_i2c_driver = {
+ 	.driver = {
+ 		.name = "ov13b10",
+ 		.pm = pm_ptr(&ov13b10_pm_ops),
+ 		.acpi_match_table = ACPI_PTR(ov13b10_acpi_ids),
++		.of_match_table = ov13b10_of_ids,
+ 	},
+ 	.probe = ov13b10_probe,
+ 	.remove = ov13b10_remove,
+diff --git a/drivers/media/platform/qcom/iris/iris_common.c b/drivers/media/platform/qcom/iris/iris_common.c
+--- a/drivers/media/platform/qcom/iris/iris_common.c
++++ b/drivers/media/platform/qcom/iris/iris_common.c
+@@ -43,7 +43,7 @@
+ 	inst->tss[inst->metadata_idx].ts_us = ts_us;
+ 	inst->tss[inst->metadata_idx].ts_ns = vb->timestamp;
+ 
+-	inst->metadata_idx++;
++	inst->metadata_idx = (inst->metadata_idx + 1) % ARRAY_SIZE(inst->tss);
+ }
+ 
+ int iris_process_streamon_input(struct iris_inst *inst)
+@@ -151,6 +151,7 @@
+ 		return ret;
+ 
+ 	inst->last_buffer_dequeued = false;
++	v4l2_m2m_clear_state(inst->m2m_ctx);
+ 
+ 	return iris_inst_change_sub_state(inst, clear_sub_state, 0);
+ }
+diff --git a/drivers/media/platform/qcom/iris/iris_core.c b/drivers/media/platform/qcom/iris/iris_core.c
+--- a/drivers/media/platform/qcom/iris/iris_core.c
++++ b/drivers/media/platform/qcom/iris/iris_core.c
+@@ -4,6 +4,8 @@
+  */
+ 
+ #include <linux/pm_runtime.h>
++
++#include <linux/interrupt.h>
+ 
+ #include "iris_core.h"
+ #include "iris_firmware.h"
+@@ -16,6 +18,8 @@
+ 
+ 	ret = pm_runtime_resume_and_get(core->dev);
+ 
++	/* The threaded handler takes core->lock; quiesce it before teardown. */
++	disable_irq(core->irq);
+ 	mutex_lock(&core->lock);
+ 	if (core->state != IRIS_CORE_DEINIT) {
+ 		iris_fw_unload(core);
+@@ -27,6 +31,8 @@
+ 		core->state = IRIS_CORE_DEINIT;
+ 	}
+ 	mutex_unlock(&core->lock);
++	/* Balance this temporary gate; power-off owns its own IRQ disable. */
++	enable_irq(core->irq);
+ 
+ 	if (!ret)
+ 		pm_runtime_put_sync(core->dev);
+diff --git a/drivers/media/platform/qcom/iris/iris_core.h b/drivers/media/platform/qcom/iris/iris_core.h
+--- a/drivers/media/platform/qcom/iris/iris_core.h
++++ b/drivers/media/platform/qcom/iris/iris_core.h
+@@ -120,6 +120,9 @@
+ 	u32					intr_status;
+ 	struct delayed_work			sys_error_handler;
+ 	struct list_head			instances;
++	struct device *direct_fw_dev;
++	struct iommu_domain *direct_fw_domain;
++	size_t direct_fw_size;
+ 	/* encoder and decoder have overlapping caps, so two different arrays are required */
+ 	struct platform_inst_fw_cap		inst_fw_caps_dec[INST_FW_CAP_MAX];
+ 	struct platform_inst_fw_cap		inst_fw_caps_enc[INST_FW_CAP_MAX];
+diff --git a/drivers/media/platform/qcom/iris/iris_firmware.c b/drivers/media/platform/qcom/iris/iris_firmware.c
+--- a/drivers/media/platform/qcom/iris/iris_firmware.c
++++ b/drivers/media/platform/qcom/iris/iris_firmware.c
+@@ -4,6 +4,11 @@
+  */
+ 
+ #include <linux/firmware.h>
++#include <linux/iommu.h>
++#include <linux/moduleparam.h>
++#include <linux/of_device.h>
++#include <linux/platform_device.h>
++#include <linux/sizes.h>
+ #include <linux/firmware/qcom/qcom_pas.h>
+ #include <linux/firmware/qcom/qcom_scm.h>
+ #include <linux/of_address.h>
+@@ -16,6 +21,10 @@
+ #define IRIS_PAS_ID				9
+ 
+ #define MAX_FIRMWARE_NAME_SIZE	128
++
++static bool firmware_direct;
++module_param(firmware_direct, bool, 0444);
++MODULE_PARM_DESC(firmware_direct, "Gaokun EL2 VPU2 direct firmware boot (requires firmware DT child)");
+ 
+ /* Detect Gen2 firmware by scanning the blob for:
+  *   QC_IMAGE_VERSION_STRING=<version>
+@@ -108,6 +117,133 @@
+ 	return firmware;
+ }
+ 
++#define IRIS_DIRECT_TZ_BASE 0xc0000
++#define IRIS_DIRECT_RESET 0x1000
++
++static void iris_direct_reset(struct iris_core *core, bool assert)
++{
++	void __iomem *base = core->reg_base + IRIS_DIRECT_TZ_BASE;
++	u32 size = core->direct_fw_size;
++
++	if (assert) {
++		writel(BIT(0), base + IRIS_DIRECT_RESET);
++		return;
++	}
++	writel(0, base + 0x1028); /* firmware start */
++	writel(size, base + 0x102c); /* firmware end */
++	writel(0, base + 0x1020); /* CPA start */
++	writel(size, base + 0x1024); /* CPA end */
++	writel(size, base + 0x1030); /* nonpixel start */
++	writel(size, base + 0x1034); /* nonpixel end */
++	writel(0, base + IRIS_DIRECT_RESET);
++}
++
++static void iris_direct_cleanup(struct iris_core *core)
++{
++	if (!core->direct_fw_dev)
++		return;
++	if (core->direct_fw_size) {
++		iris_direct_reset(core, true);
++		iommu_unmap(core->direct_fw_domain, 0, core->direct_fw_size);
++		core->direct_fw_size = 0;
++	}
++	if (core->direct_fw_domain) {
++		iommu_detach_device(core->direct_fw_domain, core->direct_fw_dev);
++		iommu_domain_free(core->direct_fw_domain);
++		core->direct_fw_domain = NULL;
++	}
++	platform_device_unregister(to_platform_device(core->direct_fw_dev));
++	core->direct_fw_dev = NULL;
++}
++
++static int iris_direct_load(struct iris_core *core)
++{
++	struct platform_device_info info = { 0 };
++	const struct firmware *fw;
++	const char *fwname;
++	struct platform_device *pdev;
++	struct iommu_domain *domain;
++	struct device_node *np;
++	struct resource res;
++	void *mem;
++	ssize_t size;
++	int ret;
++
++	if (!of_machine_is_compatible("huawei,gaokun3") ||
++	    !of_device_is_compatible(core->dev->of_node, "qcom,sc8280xp-iris"))
++		return -EINVAL;
++	np = of_get_child_by_name(core->dev->of_node, "video-firmware");
++	if (!np)
++		return -ENODEV;
++	ret = of_reserved_mem_region_to_resource(core->dev->of_node, 0, &res);
++	if (ret)
++		goto put_node;
++	info.fwnode = &np->fwnode;
++	info.parent = core->dev;
++	info.name = "iris-direct-firmware";
++	info.dma_mask = DMA_BIT_MASK(32);
++	pdev = platform_device_register_full(&info);
++	if (IS_ERR(pdev)) {
++		ret = PTR_ERR(pdev);
++		goto put_node;
++	}
++	core->direct_fw_dev = &pdev->dev;
++	pdev->dev.of_node = np;
++	ret = of_dma_configure(&pdev->dev, np, true);
++	if (ret)
++		goto cleanup;
++	domain = iommu_paging_domain_alloc(&pdev->dev);
++	if (IS_ERR(domain)) {
++		ret = PTR_ERR(domain);
++		goto cleanup;
++	}
++	ret = iommu_attach_device(domain, &pdev->dev);
++	if (ret) {
++		iommu_domain_free(domain);
++		goto cleanup;
++	}
++	core->direct_fw_domain = domain;
++	fw = iris_detect_firmware(core, &fwname);
++	if (IS_ERR(fw)) {
++		ret = PTR_ERR(fw);
++		goto cleanup;
++	}
++	core->iris_firmware_data = core->iris_firmware_desc->firmware_data;
++	size = qcom_mdt_get_size(fw);
++	if (size <= 0 || size > resource_size(&res) || resource_size(&res) > (6 * SZ_1M)) {
++		ret = -EINVAL;
++		goto release_fw;
++	}
++	iris_direct_reset(core, true);
++	mem = memremap(res.start, resource_size(&res), MEMREMAP_WC);
++	if (!mem) {
++		ret = -ENOMEM;
++		goto release_fw;
++	}
++	ret = qcom_mdt_load_no_init(core->dev, fw, fwname, mem,
++				    res.start, resource_size(&res), NULL);
++	memunmap(mem);
++	if (ret)
++		goto release_fw;
++	ret = iommu_map(domain, 0, res.start, resource_size(&res),
++			IOMMU_READ | IOMMU_WRITE | IOMMU_PRIV, GFP_KERNEL);
++	if (ret)
++		goto release_fw;
++	core->direct_fw_size = resource_size(&res);
++	iris_direct_reset(core, false);
++	dev_info(core->dev, "direct VPU2 boot: %pa, %zu bytes mapped at IOVA 0\n",
++		 &res.start, core->direct_fw_size);
++release_fw:
++	release_firmware(fw);
++cleanup:
++	if (ret)
++		iris_direct_cleanup(core);
++put_node:
++	of_node_put(np);
++	return ret;
++}
++
++
+ static int iris_load_fw_to_memory(struct iris_core *core)
+ {
+ 	const struct firmware *firmware = NULL;
+@@ -159,6 +295,9 @@
+ {
+ 	const struct tz_cp_config *cp_config;
+ 	int i, ret;
++
++	if (firmware_direct)
++		return iris_direct_load(core);
+ 
+ 	ret = iris_load_fw_to_memory(core);
+ 	if (ret) {
+@@ -190,10 +329,18 @@
+ 
+ int iris_fw_unload(struct iris_core *core)
+ {
++	if (firmware_direct) {
++		iris_direct_cleanup(core);
++		return 0;
++	}
+ 	return qcom_pas_shutdown(IRIS_PAS_ID);
+ }
+ 
+ int iris_set_hw_state(struct iris_core *core, bool resume)
+ {
++	if (firmware_direct) {
++		iris_direct_reset(core, !resume);
++		return 0;
++	}
+ 	return qcom_pas_set_remote_state(resume, 0);
+ }
+diff --git a/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c b/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
+--- a/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
++++ b/drivers/media/platform/qcom/iris/iris_hfi_gen1_response.c
+@@ -424,6 +424,7 @@
+ 		offset = com_pkt->offset;
+ 	}
+ 
++
+ 	if ((hfi_flags & HFI_BUFFERFLAG_EOS) && !filled_len) {
+ 		reinit_completion(&inst->flush_completion);
+ 
+@@ -519,7 +520,9 @@
+ 	if (hfi_flags & HFI_BUFFERFLAG_DATACORRUPT)
+ 		flags |= V4L2_BUF_FLAG_ERROR;
+ 
+-	if (hfi_flags & HFI_BUFFERFLAG_DROP_FRAME)
++	/* An empty EOS buffer terminates drain; it does not contain a frame. */
++	if ((hfi_flags & HFI_BUFFERFLAG_DROP_FRAME) &&
++	    !((hfi_flags & HFI_BUFFERFLAG_EOS) && !filled_len))
+ 		flags |= V4L2_BUF_FLAG_ERROR;
+ 
+ 	buf->flags |= flags;
+diff --git a/drivers/media/platform/qcom/iris/iris_probe.c b/drivers/media/platform/qcom/iris/iris_probe.c
+--- a/drivers/media/platform/qcom/iris/iris_probe.c
++++ b/drivers/media/platform/qcom/iris/iris_probe.c
+@@ -200,6 +200,7 @@
+ 	if (!core)
+ 		return;
+ 
++	cancel_delayed_work_sync(&core->sys_error_handler);
+ 	iris_core_deinit(core);
+ 
+ 	video_unregister_device(core->vdev_dec);
+diff --git a/drivers/media/platform/qcom/iris/iris_vdec.c b/drivers/media/platform/qcom/iris/iris_vdec.c
+--- a/drivers/media/platform/qcom/iris/iris_vdec.c
++++ b/drivers/media/platform/qcom/iris/iris_vdec.c
+@@ -370,17 +370,8 @@
+ 	if (ret)
+ 		return ret;
+ 
+-	iris_get_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+-
+-	ret = iris_destroy_dequeued_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+-	if (ret)
+-		return ret;
+-
+-	ret = iris_create_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+-	if (ret)
+-		return ret;
+-
+-	ret = iris_queue_internal_buffers(inst, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
++	/* Release retained scratch registrations before replacing them. */
++	ret = iris_alloc_and_queue_input_int_bufs(inst);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -526,7 +517,12 @@
+ 		return -EBUSY;
+ 	}
+ 
+-	return iris_inst_change_sub_state(inst, clear_sub_state, 0);
++	ret = iris_inst_change_sub_state(inst, clear_sub_state, 0);
++	if (!ret) {
++		inst->last_buffer_dequeued = false;
++		v4l2_m2m_clear_state(inst->m2m_ctx);
++	}
++	return ret;
+ }
+ 
+ int iris_vdec_stop_cmd(struct iris_inst *inst)
+diff --git a/drivers/pinctrl/qcom/pinctrl-sc8280xp.c b/drivers/pinctrl/qcom/pinctrl-sc8280xp.c
+--- a/drivers/pinctrl/qcom/pinctrl-sc8280xp.c
++++ b/drivers/pinctrl/qcom/pinctrl-sc8280xp.c
+@@ -1884,7 +1884,7 @@
+ 	{ 143, 261 }, { 144, 229 }, { 145, 230 }, { 146, 231 },
+ 	{ 148, 232 }, { 149, 233 }, { 150, 234 }, { 151, 264 },
+ 	{ 152, 235 }, { 154, 212 }, { 157, 213 }, { 161, 219 },
+-	{ 170, 236 }, { 171, 221 }, { 174, 222 }, { 175, 237 },
++	{ 170, 236 }, { 171, 221 }, { 174, 222 },
+ 	{ 176, 223 }, { 177, 170 }, { 180, 238 }, { 181, 239 },
+ 	{ 182, 240 }, { 183, 241 }, { 184, 242 }, { 185, 243 },
+ 	{ 190, 178 }, { 193, 184 }, { 196, 185 }, { 198, 186 },
+diff --git a/drivers/platform/arm64/huawei-gaokun-ec.c b/drivers/platform/arm64/huawei-gaokun-ec.c
+--- a/drivers/platform/arm64/huawei-gaokun-ec.c
++++ b/drivers/platform/arm64/huawei-gaokun-ec.c
+@@ -9,6 +9,7 @@
+ #include <linux/cleanup.h>
+ #include <linux/delay.h>
+ #include <linux/device.h>
++#include <linux/gpio/consumer.h>
+ #include <linux/hwmon.h>
+ #include <linux/hwmon-sysfs.h>
+ #include <linux/i2c.h>
+@@ -119,6 +120,8 @@
+ 	struct blocking_notifier_head notifier_list;
+ 	struct device *hwmon_dev;
+ 	struct input_dev *idev;
++	struct gpio_desc *enable_gpio;
++	bool lid_opened;
+ 	bool suspended;
+ };
+ 
+@@ -456,10 +459,13 @@
+ int gaokun_ec_ucsi_pan_ack(struct gaokun_ec *ec, int port_id)
+ {
+ 	u8 ec_req[] = MKREQ(0x03, UCSI_REG_WRITE, 1);
+-	u8 data = 1 << port_id;
+-
+-	if (port_id == GAOKUN_UCSI_NO_PORT_UPDATE)
+-		data = 0;
++	u8 data = 0;
++
++	if (port_id != GAOKUN_UCSI_NO_PORT_UPDATE) {
++		if (port_id < 0 || port_id >= 8)
++			return -EINVAL;
++		data = 1U << port_id;
++	}
+ 
+ 	refill_req_byte(ec_req, &data);
+ 
+@@ -630,6 +636,9 @@
+ 	if (ret)
+ 		return ret;
+ 
++	msleep(100);
++	gpiod_set_value(ec->enable_gpio, 0);
++
+ 	ec->suspended = true;
+ 
+ 	return 0;
+@@ -644,14 +653,25 @@
+ 
+ 	if (!ec->suspended)
+ 		return 0;
++
++	gpiod_set_value(ec->enable_gpio, 1);
++	msleep(100);
+ 
+ 	for (i = 0; i < 3; ++i) {
+ 		ret = gaokun_ec_write(ec, ec_req);
+ 		if (ret == 0)
+ 			break;
+ 
+-		msleep(100); /* EC need time to resume */
++		msleep(100); /* I2C bus need time to resume */
+ 	}
++
++	if (ret)
++		return ret;
++
++	/* Resume may be unstable, so open lid anyways */
++	input_report_switch(ec->idev, SW_LID, 0);
++	input_sync(ec->idev);
++	ec->lid_opened = true;
+ 
+ 	ec->suspended = false;
+ 
+@@ -718,6 +738,10 @@
+ 	u8 status, id;
+ 	int ret;
+ 
++	/* EC IO here before resume will fail at the first time, so ignore it */
++	if (ec->suspended)
++		return IRQ_HANDLED;
++
+ 	ret = gaokun_ec_read_byte(ec, ec_req, &id);
+ 	if (ret)
+ 		return IRQ_HANDLED;
+@@ -729,8 +753,11 @@
+ 	case EC_EVENT_LID:
+ 		gaokun_ec_psy_read_byte(ec, EC_LID_STATE, &status);
+ 		status &= EC_LID_OPEN;
+-		input_report_switch(ec->idev, SW_LID, !status);
+-		input_sync(ec->idev);
++		if (ec->lid_opened != !!status) {
++			input_report_switch(ec->idev, SW_LID, !status);
++			input_sync(ec->idev);
++			ec->lid_opened = !!status;
++		}
+ 		break;
+ 
+ 	default:
+@@ -757,6 +784,12 @@
+ 	ec->client = client;
+ 	i2c_set_clientdata(client, ec);
+ 	BLOCKING_INIT_NOTIFIER_HEAD(&ec->notifier_list);
++
++	ec->enable_gpio = devm_gpiod_get_optional(dev, "enable",
++						  GPIOD_OUT_HIGH);
++	if (IS_ERR(ec->enable_gpio))
++		return dev_err_probe(dev, PTR_ERR(ec->enable_gpio),
++			      "Failed to get enable-gpios\n");
+ 
+ 	/* Lid switch */
+ 	ec->idev = devm_input_allocate_device(dev);
+@@ -807,7 +840,7 @@
+ MODULE_DEVICE_TABLE(of, gaokun_ec_of_match);
+ 
+ static const struct dev_pm_ops gaokun_ec_pm_ops = {
+-	NOIRQ_SYSTEM_SLEEP_PM_OPS(gaokun_ec_suspend, gaokun_ec_resume)
++	SYSTEM_SLEEP_PM_OPS(gaokun_ec_suspend, gaokun_ec_resume)
+ };
+ 
+ static struct i2c_driver gaokun_ec_driver = {
+diff --git a/drivers/power/supply/huawei-gaokun-battery.c b/drivers/power/supply/huawei-gaokun-battery.c
+--- a/drivers/power/supply/huawei-gaokun-battery.c
++++ b/drivers/power/supply/huawei-gaokun-battery.c
+@@ -8,6 +8,7 @@
+ #include <linux/auxiliary_bus.h>
+ #include <linux/bits.h>
+ #include <linux/delay.h>
++#include <linux/gpio/consumer.h>
+ #include <linux/jiffies.h>
+ #include <linux/module.h>
+ #include <linux/notifier.h>
+@@ -110,6 +111,7 @@
+ 	unsigned long update_time;
+ 	struct gaokun_psy_bat_status status;
+ 	struct gaokun_psy_bat_info info;
++	struct gpio_desc *bat_sta;
+ 
+ 	char battery_model[0x10]; /* HB30A8P9ECW-22T, the real one is XXX-22A */
+ 	char battery_serial[0x10];
+@@ -180,13 +182,19 @@
+ /* -------------------------------------------------------------------------- */
+ /* Battery */
+ 
+-static inline void gaokun_psy_get_bat_present(struct gaokun_psy *ecbat)
+-{
+-	int ret;
++static void gaokun_psy_get_bat_present(struct gaokun_psy *ecbat)
++{
++	/* _STA */
++	int ret, val;
+ 	u8 present;
+ 
+-	/* Some kind of initialization */
+-	gaokun_ec_write(ecbat->ec, (u8 []){0x02, 0xB2, 1, 0x90});
++	/* in output mode, in and out bit are synced, so read the in bit */
++	val = gpiod_get_value(ecbat->bat_sta);
++	if (!val) {
++		/* Some kind of initialization */
++		gpiod_set_value(ecbat->bat_sta, 1);
++		gaokun_ec_write(ecbat->ec, (u8 []){0x02, 0xB2, 1, 0x90});
++	}
+ 
+ 	ret = gaokun_ec_psy_read_byte(ecbat->ec, EC_ADP_STATUS, &present);
+ 
+@@ -201,7 +209,7 @@
+ static int gaokun_psy_get_bat_info(struct gaokun_psy *ecbat)
+ {
+ 	/* _BIX */
+-	if (!gaokun_psy_bat_present(ecbat))
++	if (!gaokun_psy_bat_present(ecbat)) /* TODO: ensure info is erased */
+ 		return 0;
+ 
+ 	return gaokun_ec_psy_multi_read(ecbat->ec, EC_BAT_INFO_START,
+@@ -568,6 +576,7 @@
+ 	case EC_EVENT_BAT_A1:
+ 	case EC_EVENT_BAT_A3:
+ 		if (action == EC_EVENT_BAT_A3) {
++			gaokun_psy_get_bat_present(ecbat);
+ 			gaokun_psy_get_bat_info(ecbat);
+ 			msleep(100);
+ 		}
+@@ -595,6 +604,11 @@
+ 	ecbat->ec = ec;
+ 	ecbat->dev = dev;
+ 	ecbat->nb.notifier_call = gaokun_psy_notify;
++
++	ecbat->bat_sta = devm_gpiod_get_optional(dev, "bat", GPIOD_OUT_LOW);
++	if (IS_ERR(ecbat->bat_sta))
++		return dev_err_probe(dev, PTR_ERR(ecbat->bat_sta),
++			      "Failed to get bat-gpios\n");
+ 
+ 	auxiliary_set_drvdata(adev, ecbat);
+ 
+diff --git a/drivers/remoteproc/imx_dsp_rproc.c b/drivers/remoteproc/imx_dsp_rproc.c
+--- a/drivers/remoteproc/imx_dsp_rproc.c
++++ b/drivers/remoteproc/imx_dsp_rproc.c
+@@ -1151,7 +1151,7 @@
+ 		return dev_err_probe(dev, ret, "failed on imx_dsp_rproc_clk_get\n");
+ 
+ 	init_completion(&priv->pm_comp);
+-	rproc->auto_boot = false;
++	rproc->auto_boot = RPROC_AUTO_BOOT_DISABLED;
+ 	ret = devm_rproc_add(dev, rproc);
+ 	if (ret)
+ 		return dev_err_probe(dev, ret, "rproc_add failed\n");
+diff --git a/drivers/remoteproc/imx_rproc.c b/drivers/remoteproc/imx_rproc.c
+--- a/drivers/remoteproc/imx_rproc.c
++++ b/drivers/remoteproc/imx_rproc.c
+@@ -1312,8 +1312,12 @@
+ 			return dev_err_probe(dev, PTR_ERR(priv->clk), "Failed to enable clock\n");
+ 	}
+ 
+-	if (rproc->state != RPROC_DETACHED)
+-		rproc->auto_boot = of_property_read_bool(np, "fsl,auto-boot");
++	if (rproc->state != RPROC_DETACHED) {
++		if (of_property_read_bool(np, "fsl,auto-boot"))
++			rproc->auto_boot = RPROC_AUTO_BOOT_ATTACH_OR_START;
++		else
++			rproc->auto_boot = RPROC_AUTO_BOOT_DISABLED;
++	}
+ 
+ 	if (dcfg->flags & IMX_RPROC_NEED_SYSTEM_OFF) {
+ 		/*
+diff --git a/drivers/remoteproc/ingenic_rproc.c b/drivers/remoteproc/ingenic_rproc.c
+--- a/drivers/remoteproc/ingenic_rproc.c
++++ b/drivers/remoteproc/ingenic_rproc.c
+@@ -177,7 +177,10 @@
+ 	if (!rproc)
+ 		return -ENOMEM;
+ 
+-	rproc->auto_boot = auto_boot;
++	if (auto_boot)
++		rproc->auto_boot = RPROC_AUTO_BOOT_ATTACH_OR_START;
++	else
++		rproc->auto_boot = RPROC_AUTO_BOOT_DISABLED;
+ 
+ 	vpu = rproc->priv;
+ 	vpu->dev = &pdev->dev;
+diff --git a/drivers/remoteproc/pru_rproc.c b/drivers/remoteproc/pru_rproc.c
+--- a/drivers/remoteproc/pru_rproc.c
++++ b/drivers/remoteproc/pru_rproc.c
+@@ -1029,7 +1029,7 @@
+ 	 * remote-processor as part of its state machine either through the
+ 	 * remoteproc sysfs interface or through the equivalent kernel API.
+ 	 */
+-	rproc->auto_boot = false;
++	rproc->auto_boot = RPROC_AUTO_BOOT_DISABLED;
+ 
+ 	pru = rproc->priv;
+ 	pru->dev = dev;
+diff --git a/drivers/remoteproc/qcom_q6v5.c b/drivers/remoteproc/qcom_q6v5.c
+--- a/drivers/remoteproc/qcom_q6v5.c
++++ b/drivers/remoteproc/qcom_q6v5.c
+@@ -70,6 +70,25 @@
+ 		synchronize_irq(q6v5->handover_irq);
+ }
+ 
++static int q6v5_init(struct qcom_q6v5 *q6v5, bool handover_issued)
++{
++	int ret;
++
++	/* Always send correct load state in case it was not done before */
++	ret = q6v5_load_state_toggle(q6v5, true);
++	if (ret)
++		return ret;
++
++	reinit_completion(&q6v5->start_done);
++	reinit_completion(&q6v5->stop_done);
++
++	q6v5->running = true;
++	q6v5->handover_issued = handover_issued;
++
++	q6v5_handover_irq_enable(q6v5);
++	return 0;
++}
++
+ /**
+  * qcom_q6v5_prepare() - reinitialize the qcom_q6v5 context before start
+  * @q6v5:	reference to qcom_q6v5 context to be reinitialized
+@@ -85,24 +104,23 @@
+ 		dev_err(q6v5->dev, "failed to set bandwidth request\n");
+ 		return ret;
+ 	}
+-
+-	ret = q6v5_load_state_toggle(q6v5, true);
+-	if (ret) {
++	ret = q6v5_init(q6v5, false);
++	if (ret)
+ 		icc_set_bw(q6v5->path, 0, 0);
+-		return ret;
+-	}
+-
+-	reinit_completion(&q6v5->start_done);
+-	reinit_completion(&q6v5->stop_done);
+-
+-	q6v5->running = true;
+-	q6v5->handover_issued = false;
+-
+-	q6v5_handover_irq_enable(q6v5);
+-
++	return ret;
++}
++EXPORT_SYMBOL_GPL(qcom_q6v5_prepare);
++
++int qcom_q6v5_attach(struct qcom_q6v5 *q6v5)
++{
++	int ret = q6v5_init(q6v5, true);
++
++	if (ret)
++		return ret;
++	complete(&q6v5->start_done);
+ 	return 0;
+ }
+-EXPORT_SYMBOL_GPL(qcom_q6v5_prepare);
++EXPORT_SYMBOL_GPL(qcom_q6v5_attach);
+ 
+ /**
+  * qcom_q6v5_unprepare() - unprepare the qcom_q6v5 context after stop
+@@ -266,6 +284,35 @@
+ 	return Q6V5_PANIC_DELAY_MS;
+ }
+ EXPORT_SYMBOL_GPL(qcom_q6v5_panic);
++
++/**
++ * qcom_q6v5_read_smp2p_state() - check the initial state during boot using SMP2P
++ * @q6v5:	reference to qcom_q6v5 context
++ *
++ * Read the current state of the SMP2P interrupts and attempt to determine if
++ * the remoteproc is already running. If yes, the remoteproc state is set to
++ * RPROC_DETACHED. Drivers can use this to add support for attaching to
++ * remoteprocs during boot.
++ *
++ * There is a small chance for false-positives, so drivers should combine this
++ * with device-specific status information if possible.
++ */
++void qcom_q6v5_read_smp2p_state(struct qcom_q6v5 *q6v5)
++{
++	bool handover = false;
++	bool ready = false;
++	bool fatal = false;
++	bool stop = false;
++
++	irq_get_irqchip_state(q6v5->handover_irq, IRQCHIP_STATE_LINE_LEVEL, &handover);
++	irq_get_irqchip_state(q6v5->ready_irq, IRQCHIP_STATE_LINE_LEVEL, &ready);
++	irq_get_irqchip_state(q6v5->fatal_irq, IRQCHIP_STATE_LINE_LEVEL, &fatal);
++	irq_get_irqchip_state(q6v5->stop_irq, IRQCHIP_STATE_LINE_LEVEL, &stop);
++
++	if (ready && handover && !stop && !fatal)
++		q6v5->rproc->state = RPROC_DETACHED;
++}
++EXPORT_SYMBOL_GPL(qcom_q6v5_read_smp2p_state);
+ 
+ /**
+  * qcom_q6v5_init() - initializer of the q6v5 common struct
+diff --git a/drivers/remoteproc/qcom_q6v5.h b/drivers/remoteproc/qcom_q6v5.h
+--- a/drivers/remoteproc/qcom_q6v5.h
++++ b/drivers/remoteproc/qcom_q6v5.h
+@@ -51,7 +51,10 @@
+ 		   void (*handover)(struct qcom_q6v5 *q6v5));
+ void qcom_q6v5_deinit(struct qcom_q6v5 *q6v5);
+ 
++void qcom_q6v5_read_smp2p_state(struct qcom_q6v5 *q6v5);
++
+ int qcom_q6v5_prepare(struct qcom_q6v5 *q6v5);
++int qcom_q6v5_attach(struct qcom_q6v5 *q6v5);
+ int qcom_q6v5_unprepare(struct qcom_q6v5 *q6v5);
+ int qcom_q6v5_request_stop(struct qcom_q6v5 *q6v5, struct qcom_sysmon *sysmon);
+ int qcom_q6v5_wait_for_start(struct qcom_q6v5 *q6v5, int timeout);
+diff --git a/drivers/remoteproc/qcom_q6v5_adsp.c b/drivers/remoteproc/qcom_q6v5_adsp.c
+--- a/drivers/remoteproc/qcom_q6v5_adsp.c
++++ b/drivers/remoteproc/qcom_q6v5_adsp.c
+@@ -674,7 +674,10 @@
+ 		return -ENOMEM;
+ 	}
+ 
+-	rproc->auto_boot = desc->auto_boot;
++	if (desc->auto_boot)
++		rproc->auto_boot = RPROC_AUTO_BOOT_ATTACH_OR_START;
++	else
++		rproc->auto_boot = RPROC_AUTO_BOOT_DISABLED;
+ 	rproc->has_iommu = desc->has_iommu;
+ 	rproc_coredump_set_elf_info(rproc, ELFCLASS32, EM_NONE);
+ 
+diff --git a/drivers/remoteproc/qcom_q6v5_mss.c b/drivers/remoteproc/qcom_q6v5_mss.c
+--- a/drivers/remoteproc/qcom_q6v5_mss.c
++++ b/drivers/remoteproc/qcom_q6v5_mss.c
+@@ -2106,7 +2106,7 @@
+ 		return -ENOMEM;
+ 	}
+ 
+-	rproc->auto_boot = false;
++	rproc->auto_boot = RPROC_AUTO_BOOT_DISABLED;
+ 	rproc_coredump_set_elf_info(rproc, ELFCLASS32, EM_NONE);
+ 
+ 	qproc = rproc->priv;
+diff --git a/drivers/remoteproc/qcom_q6v5_pas.c b/drivers/remoteproc/qcom_q6v5_pas.c
+--- a/drivers/remoteproc/qcom_q6v5_pas.c
++++ b/drivers/remoteproc/qcom_q6v5_pas.c
+@@ -236,10 +236,9 @@
+ 	/* Store firmware handle to be used in qcom_pas_start() */
+ 	pas->firmware = fw;
+ 
+-	if (pas->lite_pas_id)
+-		qcom_pas_shutdown(pas->lite_pas_id);
+-	if (pas->lite_dtb_pas_id)
+-		qcom_pas_shutdown(pas->lite_dtb_pas_id);
++	/* Boot firmware is stopped before loading the full image. */
++	pas->lite_pas_id = 0;
++	pas->lite_dtb_pas_id = 0;
+ 
+ 	if (pas->dtb_pas_id) {
+ 		ret = request_firmware(&pas->dtb_firmware, pas->dtb_firmware_name, pas->dev);
+@@ -401,6 +400,28 @@
+ 	qcom_pas_pds_disable(pas, pas->proxy_pds, pas->proxy_pd_count);
+ }
+ 
++static int qcom_pas_shutdown_with_lite(int pas_id, int lite_pas_id)
++{
++	int ret, lite_ret = -ENODEV;
++
++	/*
++	 * We don't know if the boot firmware started the "full" or "lite"
++	 * firmware, so we don't know if we need to shutdown the lite_pas_id or
++	 * the normal pas_id. Unfortunately, the return codes of the SCM calls
++	 * are also not helpful to figure that out. Since shutting down a
++	 * stopped remoteproc is a no-op, we just shutdown both and if one of
++	 * the calls succeeds, we assume it's okay.
++	 */
++	if (lite_pas_id)
++		lite_ret = qcom_pas_shutdown(lite_pas_id);
++
++	ret = qcom_pas_shutdown(pas_id);
++	if (ret && lite_ret)
++		return ret;
++
++	return 0;
++}
++
+ static int qcom_pas_stop(struct rproc *rproc)
+ {
+ 	struct qcom_pas *pas = rproc->priv;
+@@ -412,7 +433,7 @@
+ 	if (ret == -ETIMEDOUT)
+ 		dev_err(pas->dev, "timed out on wait\n");
+ 
+-	ret = qcom_pas_shutdown(pas->pas_id);
++	ret = qcom_pas_shutdown_with_lite(pas->pas_id, pas->lite_pas_id);
+ 	if (ret && pas->decrypt_shutdown)
+ 		ret = qcom_pas_shutdown_poll_decrypt(pas);
+ 
+@@ -420,7 +441,7 @@
+ 		dev_err(pas->dev, "failed to shutdown: %d\n", ret);
+ 
+ 	if (pas->dtb_pas_id) {
+-		dtb_ret = qcom_pas_shutdown(pas->dtb_pas_id);
++		dtb_ret = qcom_pas_shutdown_with_lite(pas->dtb_pas_id, pas->lite_dtb_pas_id);
+ 		if (dtb_ret)
+ 			dev_err(pas->dev, "failed to shutdown dtb: %d\n", dtb_ret);
+ 
+@@ -432,9 +453,11 @@
+ 
+ 	qcom_pas_unmap_carveout(rproc, pas->mem_phys, pas->mem_size);
+ 
+-	handover = qcom_q6v5_unprepare(&pas->q6v5);
+-	if (handover)
+-		qcom_pas_handover(&pas->q6v5);
++	if (rproc->state != RPROC_DETACHED) {
++		handover = qcom_q6v5_unprepare(&pas->q6v5);
++		if (handover)
++			qcom_pas_handover(&pas->q6v5);
++	}
+ 
+ 	if (pas->smem_host_id)
+ 		ret = qcom_smem_bust_hwspin_lock_by_host(pas->smem_host_id);
+@@ -527,9 +550,9 @@
+ 	bool stop_state;
+ 	int ret;
+ 
+-	pas->q6v5.handover_issued = true;
+-
+-	pas->q6v5.running = true;
++	ret = qcom_q6v5_attach(&pas->q6v5);
++	if (ret)
++		return ret;
+ 	ret = irq_get_irqchip_state(pas->q6v5.fatal_irq,
+ 				    IRQCHIP_STATE_LINE_LEVEL, &crash_state);
+ 	if (ret)
+@@ -573,6 +596,7 @@
+ 	pas->rproc->state = RPROC_OFFLINE;
+ 	ret = -EINVAL;
+ disable_running:
++	qcom_q6v5_unprepare(&pas->q6v5);
+ 	pas->q6v5.running = false;
+ 
+ 	return ret;
+@@ -613,6 +637,13 @@
+ 	.panic = qcom_pas_panic,
+ 	.coredump = qcom_pas_minidump,
+ 	.attach = qcom_pas_attach,
++};
++
++static const struct rproc_ops qcom_pas_ops_no_reset = {
++	.attach = qcom_pas_attach,
++	.da_to_va = qcom_pas_da_to_va,
++	.stop = qcom_pas_stop,
++	.panic = qcom_pas_panic,
+ };
+ 
+ static int qcom_pas_init_clock(struct qcom_pas *pas)
+@@ -852,6 +883,9 @@
+ 	if (desc->minidump_id)
+ 		ops = &qcom_pas_minidump_ops;
+ 
++	if (device_property_read_bool(&pdev->dev, "qcom,broken-reset"))
++		ops = &qcom_pas_ops_no_reset;
++
+ 	rproc = devm_rproc_alloc(&pdev->dev, desc->sysmon_name, ops, fw_name, sizeof(*pas));
+ 
+ 	if (!rproc) {
+@@ -860,7 +894,14 @@
+ 	}
+ 
+ 	rproc->has_iommu = of_property_present(pdev->dev.of_node, "iommus");
+-	rproc->auto_boot = desc->auto_boot;
++	if (desc->auto_boot) {
++		if (ops->start)
++			rproc->auto_boot = RPROC_AUTO_BOOT_RESTART_IF_FW_AVAILABLE;
++		else
++			rproc->auto_boot = RPROC_AUTO_BOOT_ATTACH_OR_START;
++	} else {
++		rproc->auto_boot = RPROC_AUTO_BOOT_DISABLED;
++	}
+ 	rproc_coredump_set_elf_info(rproc, ELFCLASS32, EM_NONE);
+ 
+ 	pas = rproc->priv;
+@@ -913,6 +954,21 @@
+ 	if (ret)
+ 		goto detach_proxy_pds;
+ 
++	/*
++	 * Unfortunately, the PAS interface does not provide a reliable way to
++	 * check if a certain pas_id is currently running. Reading the smp2p
++	 * state is the best we can do to check if the remoteproc is already
++	 * running during boot.
++	 */
++	qcom_q6v5_read_smp2p_state(&pas->q6v5);
++
++	if (rproc->state == RPROC_OFFLINE && !ops->start) {
++		dev_err(&pdev->dev, "reset broken and remoteproc not running during boot, exiting\n");
++		/* Release all resources, but return 0 so we don't block sync_state() */
++		ret = 0;
++		goto deinit_q6v5;
++	}
++
+ 	qcom_add_glink_subdev(rproc, &pas->glink_subdev, desc->ssr_name);
+ 	qcom_add_smd_subdev(rproc, &pas->smd_subdev);
+ 	qcom_add_pdm_subdev(rproc, &pas->pdm_subdev);
+@@ -948,6 +1004,7 @@
+ 	qcom_remove_pdm_subdev(rproc, &pas->pdm_subdev);
+ 	qcom_remove_smd_subdev(rproc, &pas->smd_subdev);
+ 	qcom_remove_glink_subdev(rproc, &pas->glink_subdev);
++deinit_q6v5:
+ 	qcom_q6v5_deinit(&pas->q6v5);
+ detach_proxy_pds:
+ 	qcom_pas_pds_detach(pas, pas->proxy_pds, pas->proxy_pd_count);
+@@ -955,6 +1012,7 @@
+ 	qcom_pas_unassign_memory_region(pas);
+ free_rproc:
+ 	device_init_wakeup(pas->dev, false);
++	pas->rproc = NULL;
+ 
+ 	return ret;
+ }
+@@ -965,6 +1023,9 @@
+ 
+ 	if (pas->bam_dmux)
+ 		of_platform_device_destroy(&pas->bam_dmux->dev, NULL);
++
++	if (!pas->rproc)
++		return;
+ 
+ 	rproc_del(pas->rproc);
+ 
+diff --git a/drivers/remoteproc/qcom_sysmon.c b/drivers/remoteproc/qcom_sysmon.c
+--- a/drivers/remoteproc/qcom_sysmon.c
++++ b/drivers/remoteproc/qcom_sysmon.c
+@@ -739,7 +739,7 @@
+ 	bool shutdown_state;
+ 	int ret;
+ 
+-	if (!sysmon)
++	if (!sysmon || sysmon->shutdown_irq < 0)
+ 		return false;
+ 
+ 	ret = irq_get_irqchip_state(sysmon->shutdown_irq,
+diff --git a/drivers/remoteproc/rcar_rproc.c b/drivers/remoteproc/rcar_rproc.c
+--- a/drivers/remoteproc/rcar_rproc.c
++++ b/drivers/remoteproc/rcar_rproc.c
+@@ -139,7 +139,7 @@
+ 	dev_set_drvdata(dev, rproc);
+ 
+ 	/* Manually start the rproc */
+-	rproc->auto_boot = false;
++	rproc->auto_boot = RPROC_AUTO_BOOT_DISABLED;
+ 
+ 	ret = devm_rproc_add(dev, rproc);
+ 	if (ret) {
+diff --git a/drivers/remoteproc/remoteproc_core.c b/drivers/remoteproc/remoteproc_core.c
+--- a/drivers/remoteproc/remoteproc_core.c
++++ b/drivers/remoteproc/remoteproc_core.c
+@@ -1686,7 +1686,8 @@
+ {
+ 	int ret;
+ 
+-	if (rproc->state == RPROC_DETACHED) {
++	if (rproc->state == RPROC_DETACHED &&
++	    rproc->auto_boot != RPROC_AUTO_BOOT_RESTART_IF_FW_AVAILABLE) {
+ 		schedule_work(&rproc->attach_work);
+ 		return 0;
+ 	}
+@@ -1713,8 +1714,9 @@
+ 	if (!rproc->ops->stop)
+ 		return -EINVAL;
+ 
+-	/* Stop any subdevices for the remote processor */
+-	rproc_stop_subdevices(rproc, crashed);
++	/* Stop any subdevices for the remote processor if it was attached */
++	if (rproc->state != RPROC_DETACHED)
++		rproc_stop_subdevices(rproc, crashed);
+ 
+ 	/* the installed resource table is no longer accessible */
+ 	ret = rproc_reset_rsc_table_on_stop(rproc);
+@@ -1731,7 +1733,8 @@
+ 		return ret;
+ 	}
+ 
+-	rproc_unprepare_subdevices(rproc);
++	if (rproc->state != RPROC_DETACHED)
++		rproc_unprepare_subdevices(rproc);
+ 
+ 	rproc->state = RPROC_OFFLINE;
+ 
+@@ -1931,9 +1934,9 @@
+  */
+ int rproc_boot(struct rproc *rproc)
+ {
+-	const struct firmware *firmware_p;
++	const struct firmware *firmware_p = NULL;
+ 	struct device *dev;
+-	int ret;
++	int ret, fw_ret = 1;
+ 
+ 	if (!rproc) {
+ 		pr_err("invalid rproc handle\n");
+@@ -1960,6 +1963,19 @@
+ 		goto unlock_mutex;
+ 	}
+ 
++	/* Check early if we have firmware avilable if needed */
++	if (rproc->auto_boot == RPROC_AUTO_BOOT_RESTART_IF_FW_AVAILABLE &&
++	    rproc->state == RPROC_DETACHED) {
++		fw_ret = request_firmware(&firmware_p, rproc->firmware, dev);
++		if (fw_ret == 0) {
++			dev_info(dev, "restarting %s with new firmware\n", rproc->name);
++
++			ret = rproc_stop(rproc, false);
++			if (ret)
++				goto downref_rproc;
++		}
++	}
++
+ 	if (rproc->state == RPROC_DETACHED) {
+ 		dev_info(dev, "attaching to %s\n", rproc->name);
+ 
+@@ -1967,19 +1983,20 @@
+ 	} else {
+ 		dev_info(dev, "powering up %s\n", rproc->name);
+ 
+-		/* load firmware */
+-		ret = request_firmware(&firmware_p, rproc->firmware, dev);
+-		if (ret < 0) {
+-			dev_err(dev, "request_firmware failed: %d\n", ret);
++		/* load firmware (if not already happened above) */
++		if (fw_ret == 1)
++			fw_ret = request_firmware(&firmware_p, rproc->firmware, dev);
++		if (fw_ret < 0) {
++			dev_err(dev, "request_firmware failed: %d\n", fw_ret);
++			ret = fw_ret;
+ 			goto downref_rproc;
+ 		}
+ 
+ 		ret = rproc_fw_boot(rproc, firmware_p);
+-
+-		release_firmware(firmware_p);
+ 	}
+ 
+ downref_rproc:
++	release_firmware(firmware_p);
+ 	if (ret)
+ 		atomic_dec(&rproc->power);
+ unlock_mutex:
+@@ -2296,6 +2313,10 @@
+ 		return -EINVAL;
+ 	}
+ 
++	if (rproc->auto_boot == RPROC_AUTO_BOOT_RESTART_IF_FW_AVAILABLE &&
++	    (!rproc->ops->stop || !rproc->ops->start || !rproc->ops->attach))
++		return -EINVAL;
++
+ 	return 0;
+ }
+ 
+@@ -2508,7 +2529,7 @@
+ 		return NULL;
+ 
+ 	rproc->priv = &rproc[1];
+-	rproc->auto_boot = true;
++	rproc->auto_boot = RPROC_AUTO_BOOT_ATTACH_OR_START;
+ 	rproc->elf_class = ELFCLASSNONE;
+ 	rproc->elf_machine = EM_NONE;
+ 
+diff --git a/drivers/remoteproc/stm32_rproc.c b/drivers/remoteproc/stm32_rproc.c
+--- a/drivers/remoteproc/stm32_rproc.c
++++ b/drivers/remoteproc/stm32_rproc.c
+@@ -666,7 +666,8 @@
+ }
+ 
+ static int stm32_rproc_parse_dt(struct platform_device *pdev,
+-				struct stm32_rproc *ddata, bool *auto_boot)
++				struct stm32_rproc *ddata,
++				enum rproc_auto_boot *auto_boot)
+ {
+ 	struct device *dev = &pdev->dev;
+ 	struct device_node *np = dev->of_node;
+@@ -746,7 +747,10 @@
+ 	if (err)
+ 		dev_info(dev, "failed to get pdds\n");
+ 
+-	*auto_boot = of_property_read_bool(np, "st,auto-boot");
++	if (of_property_read_bool(np, "st,auto-boot"))
++		*auto_boot = RPROC_AUTO_BOOT_ATTACH_OR_START;
++	else
++		*auto_boot = RPROC_AUTO_BOOT_DISABLED;
+ 
+ 	/*
+ 	 * See if we can check the M4 status, i.e if it was started
+diff --git a/drivers/remoteproc/wkup_m3_rproc.c b/drivers/remoteproc/wkup_m3_rproc.c
+--- a/drivers/remoteproc/wkup_m3_rproc.c
++++ b/drivers/remoteproc/wkup_m3_rproc.c
+@@ -170,7 +170,7 @@
+ 	if (!rproc)
+ 		return -ENOMEM;
+ 
+-	rproc->auto_boot = false;
++	rproc->auto_boot = RPROC_AUTO_BOOT_DISABLED;
+ 	rproc->sysfs_read_only = true;
+ 
+ 	wkupm3 = rproc->priv;
+diff --git a/drivers/remoteproc/xlnx_r5_remoteproc.c b/drivers/remoteproc/xlnx_r5_remoteproc.c
+--- a/drivers/remoteproc/xlnx_r5_remoteproc.c
++++ b/drivers/remoteproc/xlnx_r5_remoteproc.c
+@@ -904,11 +904,11 @@
+ 
+ 	r5_rproc->recovery_disabled = false;
+ 	r5_rproc->has_iommu = false;
+-	r5_rproc->auto_boot = false;
++	r5_rproc->auto_boot = RPROC_AUTO_BOOT_DISABLED;
+ 
+ 	/* attempt to boot automatically if the firmware-name is provided */
+ 	if (fw_name)
+-		r5_rproc->auto_boot = true;
++		r5_rproc->auto_boot = RPROC_AUTO_BOOT_ATTACH_OR_START;
+ 
+ 	r5_core = r5_rproc->priv;
+ 	r5_core->dev = cdev;
+@@ -1254,7 +1254,7 @@
+ 			/* Enable attach on recovery method. Clear it during rproc stop. */
+ 			rproc_set_feature(r5_core->rproc,
+ 					  RPROC_FEAT_ATTACH_ON_RECOVERY);
+-			r5_core->rproc->auto_boot = true;
++			r5_core->rproc->auto_boot = RPROC_AUTO_BOOT_ATTACH_OR_START;
+ 		}
+ 	}
+ 
+diff --git a/drivers/rpmsg/rpmsg_core.c b/drivers/rpmsg/rpmsg_core.c
+--- a/drivers/rpmsg/rpmsg_core.c
++++ b/drivers/rpmsg/rpmsg_core.c
+@@ -94,6 +94,14 @@
+  * relevant inbound messages arrive (i.e. messages which their dst address
+  * equals to the src address of their rpmsg channel), the driver's handler
+  * is invoked to process it.
++ *
++ * Note that the endpoint for simple rpmsg drivers is created before calling
++ * probe() and closed after calling remove(), so special care must be taken
++ * to handle calls to the rx callback before/in parallel of probe() and
++ * after/in parallel of remove(). If more control over the endpoint creation
++ * is required to avoid race conditions, drivers can omit the callback and
++ * explicitly call rpmsg_dev_open_ept() in probe() and rpmsg_destroy_ept() in
++ * remove(), together with locks as needed.
+  *
+  * That said, more complicated drivers might need to allocate
+  * additional rpmsg addresses, and bind them to different rx callbacks.
+@@ -425,6 +433,32 @@
+ 					rpdev->id.name);
+ }
+ 
++struct rpmsg_endpoint *rpmsg_dev_open_ept(struct rpmsg_device *rpdev,
++					  rpmsg_rx_cb_t cb, void *priv)
++{
++	struct rpmsg_driver *rpdrv = to_rpmsg_driver(rpdev->dev.driver);
++	struct rpmsg_channel_info chinfo = {
++		.src = rpdev->src,
++		.dst = RPMSG_ADDR_ANY,
++	};
++	struct rpmsg_endpoint *ept;
++
++	strscpy(chinfo.name, rpdev->id.name, sizeof(chinfo.name));
++
++	ept = rpmsg_create_ept(rpdev, cb, priv, chinfo);
++	if (!ept) {
++		dev_err(&rpdev->dev, "failed to create endpoint\n");
++		return NULL;
++	}
++
++	rpdev->ept = ept;
++	rpdev->src = ept->addr;
++
++	ept->flow_cb = rpdrv->flowcontrol;
++	return ept;
++}
++EXPORT_SYMBOL(rpmsg_dev_open_ept);
++
+ /*
+  * when an rpmsg driver is probed with a channel, we seamlessly create
+  * it an endpoint, binding its rx callback to a unique local rpmsg
+@@ -437,7 +471,6 @@
+ {
+ 	struct rpmsg_device *rpdev = to_rpmsg_device(dev);
+ 	struct rpmsg_driver *rpdrv = to_rpmsg_driver(rpdev->dev.driver);
+-	struct rpmsg_channel_info chinfo = {};
+ 	struct rpmsg_endpoint *ept = NULL;
+ 	int err;
+ 
+@@ -447,21 +480,11 @@
+ 		goto out;
+ 
+ 	if (rpdrv->callback) {
+-		strscpy(chinfo.name, rpdev->id.name, sizeof(chinfo.name));
+-		chinfo.src = rpdev->src;
+-		chinfo.dst = RPMSG_ADDR_ANY;
+-
+-		ept = rpmsg_create_ept(rpdev, rpdrv->callback, NULL, chinfo);
++		ept = rpmsg_dev_open_ept(rpdev, rpdrv->callback, NULL);
+ 		if (!ept) {
+-			dev_err(dev, "failed to create endpoint\n");
+ 			err = -ENOMEM;
+ 			goto out;
+ 		}
+-
+-		rpdev->ept = ept;
+-		rpdev->src = ept->addr;
+-
+-		ept->flow_cb = rpdrv->flowcontrol;
+ 	}
+ 
+ 	err = rpdrv->probe(rpdev);
+@@ -470,7 +493,7 @@
+ 		goto destroy_ept;
+ 	}
+ 
+-	if (ept && rpdev->ops->announce_create) {
++	if (rpdev->ept && rpdev->ops->announce_create) {
+ 		err = rpdev->ops->announce_create(rpdev);
+ 		if (err) {
+ 			dev_err(dev, "failed to announce creation\n");
+@@ -495,13 +518,13 @@
+ 	struct rpmsg_device *rpdev = to_rpmsg_device(dev);
+ 	struct rpmsg_driver *rpdrv = to_rpmsg_driver(rpdev->dev.driver);
+ 
+-	if (rpdev->ops->announce_destroy)
++	if (rpdev->ept && rpdev->ops->announce_destroy)
+ 		rpdev->ops->announce_destroy(rpdev);
+ 
+ 	if (rpdrv->remove)
+ 		rpdrv->remove(rpdev);
+ 
+-	if (rpdev->ept)
++	if (rpdrv->callback && rpdev->ept)
+ 		rpmsg_destroy_ept(rpdev->ept);
+ }
+ 
+diff --git a/drivers/soc/qcom/pmic_glink.c b/drivers/soc/qcom/pmic_glink.c
+--- a/drivers/soc/qcom/pmic_glink.c
++++ b/drivers/soc/qcom/pmic_glink.c
+@@ -355,8 +355,18 @@
+ 	__pmic_glink = pg;
+ 	mutex_unlock(&__pmic_glink_lock);
+ 
++	ret = register_rpmsg_driver(&pmic_glink_rpmsg_driver);
++	if (ret) {
++		ret = dev_err_probe(&pdev->dev, ret, "failed to register rpmsg driver\n");
++		goto out_release_pmic_glink;
++	}
++
+ 	return 0;
+ 
++out_release_pmic_glink:
++	mutex_lock(&__pmic_glink_lock);
++	__pmic_glink = NULL;
++	mutex_unlock(&__pmic_glink_lock);
+ out_release_aux_devices:
+ 	if (pg->data->client_mask & BIT(PMIC_GLINK_CLIENT_BATT))
+ 		pmic_glink_del_aux_device(pg, &pg->ps_aux);
+@@ -385,6 +395,8 @@
+ 	if (pg->data->client_mask & BIT(PMIC_GLINK_CLIENT_UCSI))
+ 		pmic_glink_del_aux_device(pg, &pg->ucsi_aux);
+ 
++	unregister_rpmsg_driver(&pmic_glink_rpmsg_driver);
++
+ 	guard(mutex)(&__pmic_glink_lock);
+ 	__pmic_glink = NULL;
+ }
+@@ -419,31 +431,7 @@
+ 		.of_match_table = pmic_glink_of_match,
+ 	},
+ };
+-
+-static int pmic_glink_init(void)
+-{
+-	int ret;
+-
+-	ret = platform_driver_register(&pmic_glink_driver);
+-	if (ret < 0)
+-		return ret;
+-
+-	ret = register_rpmsg_driver(&pmic_glink_rpmsg_driver);
+-	if (ret < 0) {
+-		platform_driver_unregister(&pmic_glink_driver);
+-		return ret;
+-	}
+-
+-	return 0;
+-}
+-module_init(pmic_glink_init);
+-
+-static void pmic_glink_exit(void)
+-{
+-	unregister_rpmsg_driver(&pmic_glink_rpmsg_driver);
+-	platform_driver_unregister(&pmic_glink_driver);
+-}
+-module_exit(pmic_glink_exit);
++module_platform_driver(pmic_glink_driver);
+ 
+ MODULE_DESCRIPTION("Qualcomm PMIC GLINK driver");
+ MODULE_LICENSE("GPL");
+diff --git a/drivers/soc/qcom/smp2p.c b/drivers/soc/qcom/smp2p.c
+--- a/drivers/soc/qcom/smp2p.c
++++ b/drivers/soc/qcom/smp2p.c
+@@ -78,7 +78,7 @@
+ 	u32 flags;
+ 
+ 	struct {
+-		u8 name[SMP2P_MAX_ENTRY_NAME];
++		char name[SMP2P_MAX_ENTRY_NAME];
+ 		u32 value;
+ 	} entries[SMP2P_MAX_ENTRY];
+ } __packed;
+@@ -215,8 +215,6 @@
+ 	if (smp2p->ssr_ack)
+ 		val |= BIT(SMP2P_FLAGS_RESTART_ACK_BIT);
+ 	out->flags = val;
+-
+-	qcom_smp2p_kick(smp2p);
+ }
+ 
+ static void qcom_smp2p_negotiate(struct qcom_smp2p *smp2p)
+@@ -227,8 +225,10 @@
+ 	if (in->version == out->version) {
+ 		out->features &= in->features;
+ 
+-		if (out->features & SMP2P_FEATURE_SSR_ACK)
++		if (out->features & SMP2P_FEATURE_SSR_ACK) {
+ 			smp2p->ssr_ack_enabled = true;
++			smp2p->ssr_ack = !!(out->flags & BIT(SMP2P_FLAGS_RESTART_ACK_BIT));
++		}
+ 
+ 		smp2p->negotiation_done = true;
+ 		trace_smp2p_negotiate(smp2p->dev, out->features);
+@@ -291,7 +291,6 @@
+ 	struct smp2p_entry *entry;
+ 	int irq_pin;
+ 	u32 status;
+-	char buf[SMP2P_MAX_ENTRY_NAME];
+ 	u32 val;
+ 	int i;
+ 
+@@ -300,8 +299,7 @@
+ 	/* Match newly created entries */
+ 	for (i = smp2p->valid_entries; i < in->valid_entries; i++) {
+ 		list_for_each_entry(entry, &smp2p->inbound, node) {
+-			memcpy(buf, in->entries[i].name, sizeof(buf));
+-			if (!strcmp(buf, entry->name)) {
++			if (!strncmp(in->entries[i].name, entry->name, SMP2P_MAX_ENTRY_NAME)) {
+ 				entry->value = &in->entries[i].value;
+ 				break;
+ 			}
+@@ -337,6 +335,24 @@
+ 			}
+ 		}
+ 	}
++}
++
++static bool qcom_smp2p_scan(struct qcom_smp2p *smp2p)
++{
++	bool ack_restart = false;
++
++	if (!smp2p->negotiation_done)
++		qcom_smp2p_negotiate(smp2p);
++
++	if (smp2p->negotiation_done) {
++		ack_restart = qcom_smp2p_check_ssr(smp2p);
++		qcom_smp2p_notify_in(smp2p);
++
++		if (ack_restart)
++			qcom_smp2p_do_ssr_ack(smp2p);
++	}
++
++	return ack_restart;
+ }
+ 
+ /**
+@@ -355,7 +371,6 @@
+ 	struct qcom_smp2p *smp2p = data;
+ 	unsigned int smem_id = smp2p->smem_items[SMP2P_INBOUND];
+ 	unsigned int pid = smp2p->remote_pid;
+-	bool ack_restart;
+ 	size_t size;
+ 
+ 	in = smp2p->in;
+@@ -372,16 +387,8 @@
+ 		smp2p->in = in;
+ 	}
+ 
+-	if (!smp2p->negotiation_done)
+-		qcom_smp2p_negotiate(smp2p);
+-
+-	if (smp2p->negotiation_done) {
+-		ack_restart = qcom_smp2p_check_ssr(smp2p);
+-		qcom_smp2p_notify_in(smp2p);
+-
+-		if (ack_restart)
+-			qcom_smp2p_do_ssr_ack(smp2p);
+-	}
++	if (qcom_smp2p_scan(smp2p))
++		qcom_smp2p_kick(smp2p);
+ 
+ out:
+ 	return IRQ_HANDLED;
+@@ -521,16 +528,24 @@
+ 				     struct device_node *node)
+ {
+ 	struct smp2p_smem_item *out = smp2p->out;
+-	char buf[SMP2P_MAX_ENTRY_NAME] = {};
+-
+-	/* Allocate an entry from the smem item */
+-	strscpy(buf, entry->name, SMP2P_MAX_ENTRY_NAME);
+-	memcpy(out->entries[out->valid_entries].name, buf, SMP2P_MAX_ENTRY_NAME);
++	int i;
++
++	/* Check if we have an entry already (e.g. allocated by boot firmware) */
++	for (i = 0; i < out->valid_entries; i++)
++		if (!strncmp(out->entries[i].name, entry->name, SMP2P_MAX_ENTRY_NAME))
++			break;
++
++	if (i == out->valid_entries) {
++		/* Allocate an entry from the smem item */
++		if (i == out->total_entries)
++			return -ENOMEM;
++
++		strscpy(out->entries[i].name, entry->name, SMP2P_MAX_ENTRY_NAME);
++		out->valid_entries++;
++	}
+ 
+ 	/* Make the logical entry reference the physical value */
+-	entry->value = &out->entries[out->valid_entries].value;
+-
+-	out->valid_entries++;
++	entry->value = &out->entries[i].value;
+ 
+ 	entry->state = qcom_smem_state_register(node, &smp2p_state_ops, entry);
+ 	if (IS_ERR(entry->state)) {
+@@ -558,6 +573,29 @@
+ 	if (IS_ERR(out)) {
+ 		dev_err(smp2p->dev, "Unable to acquire local smp2p item\n");
+ 		return PTR_ERR(out);
++	}
++
++	smp2p->out = out;
++
++	if (ret == -EEXIST && smp2p->in) {
++		if (out->magic == SMP2P_MAGIC &&
++		    out->version == 1 &&
++		    out->local_pid == smp2p->local_pid &&
++		    out->remote_pid == smp2p->remote_pid &&
++		    out->total_entries >= SMP2P_MAX_ENTRY &&
++		    out->valid_entries <= out->total_entries) {
++			/*
++			 * Reuse existing smem item, but adjust features to
++			 * what we support. This will be updated later when we
++			 * negotiate with the features of the remote side.
++			 */
++			out->features = SMP2P_ALL_FEATURES;
++			return 0;
++		} else {
++			dev_warn(smp2p->dev, "Unexpected local smp2p item allocated by firmware, resetting. "
++				 "(magic: %#x, version: %d, local_pid: %d, remote_pid: %d, total_entries: %d, valid_entries: %d)\n",
++				 out->magic, out->version, out->local_pid, out->remote_pid, out->total_entries, out->valid_entries);
++		}
+ 	}
+ 
+ 	memset(out, 0, sizeof(*out));
+@@ -586,8 +624,6 @@
+ 
+ 	qcom_smp2p_kick(smp2p);
+ 
+-	smp2p->out = out;
+-
+ 	return 0;
+ }
+ 
+@@ -627,6 +663,7 @@
+ 
+ static int qcom_smp2p_probe(struct platform_device *pdev)
+ {
++	struct smp2p_smem_item *in;
+ 	struct smp2p_entry *entry;
+ 	struct qcom_smp2p *smp2p;
+ 	const char *key;
+@@ -677,6 +714,10 @@
+ 			return ret;
+ 	}
+ 
++	in = qcom_smem_get(smp2p->remote_pid, smp2p->smem_items[SMP2P_INBOUND], NULL);
++	if (!IS_ERR(in))
++		smp2p->in = in;
++
+ 	ret = qcom_smp2p_alloc_outbound_item(smp2p);
+ 	if (ret < 0)
+ 		goto release_mbox;
+@@ -713,8 +754,9 @@
+ 	/* Check inbound entries in the case of early boot processor */
+ 	qcom_smp2p_start_in(smp2p);
+ 
+-	/* Kick the outgoing edge after allocating entries */
+-	qcom_smp2p_kick(smp2p);
++	if (smp2p->in)
++		/* Ignore return status since we kick unconditionally below */
++		qcom_smp2p_scan(smp2p);
+ 
+ 	ret = devm_request_threaded_irq(&pdev->dev, irq,
+ 					NULL, qcom_smp2p_intr,
+@@ -724,6 +766,9 @@
+ 		dev_err(&pdev->dev, "failed to request interrupt\n");
+ 		goto unwind_interfaces;
+ 	}
++
++	/* Kick the outgoing edge after allocating entries */
++	qcom_smp2p_kick(smp2p);
+ 
+ 	/*
+ 	 * Treat smp2p interrupt as wakeup source, but keep it disabled
+diff --git a/drivers/spi/spi-geni-qcom.c b/drivers/spi/spi-geni-qcom.c
+--- a/drivers/spi/spi-geni-qcom.c
++++ b/drivers/spi/spi-geni-qcom.c
+@@ -111,6 +111,7 @@
+ 	int irq;
+ 	bool cs_flag;
+ 	bool abort_failed;
++	bool force_gsi_mode;
+ 	struct dma_chan *tx;
+ 	struct dma_chan *rx;
+ 	int cur_xfer_mode;
+@@ -679,6 +680,9 @@
+ 		mas->oversampling = 1;
+ 
+ 	fifo_disable = readl(se->base + GENI_IF_DISABLE_RO) & FIFO_IF_DISABLE;
++	if (mas->force_gsi_mode)
++		fifo_disable = 1;
++
+ 	switch (fifo_disable) {
+ 	case 1:
+ 		ret = spi_geni_grab_gpi_chan(mas);
+@@ -1140,6 +1144,9 @@
+ 	if (ret)
+ 		return ret;
+ 
++	if (device_property_read_bool(&pdev->dev, "qcom,force-gsi-mode"))
++		mas->force_gsi_mode = true;
++
+ 	ret = spi_geni_init(mas);
+ 	if (ret)
+ 		return ret;
+diff --git a/drivers/usb/typec/ucsi/ucsi_huawei_gaokun.c b/drivers/usb/typec/ucsi/ucsi_huawei_gaokun.c
+--- a/drivers/usb/typec/ucsi/ucsi_huawei_gaokun.c
++++ b/drivers/usb/typec/ucsi/ucsi_huawei_gaokun.c
+@@ -8,7 +8,6 @@
+ #include <drm/bridge/aux-bridge.h>
+ #include <linux/auxiliary_bus.h>
+ #include <linux/bitops.h>
+-#include <linux/completion.h>
+ #include <linux/container_of.h>
+ #include <linux/module.h>
+ #include <linux/notifier.h>
+@@ -33,7 +32,10 @@
+ #define GAOKUN_HPD_STATE_MASK	BIT(4)
+ #define GAOKUN_HPD_IRQ_MASK	BIT(5)
+ 
+-#define GET_IDX(updt) (ffs(updt) - 1)
++#define GAOKUN_UCSI_MAX_PORTS	2
++#define GAOKUN_UCSI_REGISTER_DELAY	(3 * HZ)
++#define GAOKUN_UCSI_RETRY_DELAY		(10 * HZ)
++#define GAOKUN_UCSI_MAX_RETRIES		3
+ 
+ #define CCX_TO_ORI(ccx) (++(ccx) % 3) /* convert ccx to enum typec_orientation */
+ 
+@@ -77,7 +79,6 @@
+ } __packed;
+ 
+ struct gaokun_ucsi_port {
+-	struct completion usb_ack;
+ 	spinlock_t lock; /* serializing port resource access */
+ 
+ 	struct gaokun_ucsi *ucsi;
+@@ -94,6 +95,11 @@
+ 	u16 svid;
+ 	u8 hpd_state;
+ 	u8 hpd_irq;
++	bool applied;
++	enum gaokun_ucsi_ccx applied_ccx;
++	u16 applied_svid;
++	u8 applied_mode;
++	u8 applied_hpd;
+ };
+ 
+ struct gaokun_ucsi {
+@@ -102,10 +108,14 @@
+ 	struct gaokun_ucsi_port *ports;
+ 	struct device *dev;
+ 	struct delayed_work work;
++	struct delayed_work sync_work;
+ 	struct notifier_block nb;
+ 	u16 version;
+ 	u8 num_ports;
++	u8 retries;
+ 	bool registered;
++	bool notifier_registered;
++	bool ready;
+ };
+ 
+ /* -------------------------------------------------------------------------- */
+@@ -188,6 +198,8 @@
+ static void gaokun_ucsi_connector_status(struct ucsi_connector *con)
+ {
+ 	struct gaokun_ucsi *uec = ucsi_get_drvdata(con->ucsi);
++	struct gaokun_ucsi_reg reg;
++	unsigned long flags;
+ 	int idx;
+ 
+ 	idx = con->num - 1;
+@@ -196,7 +208,17 @@
+ 		return;
+ 	}
+ 
++	/* Read the current orientation before the core publishes this status. */
++	mutex_lock(&con->ucsi->ppm_lock);
++	if (!gaokun_ec_ucsi_get_reg(uec->ec, &reg) &&
++	    reg.num_ports == uec->num_ports) {
++		spin_lock_irqsave(&uec->ports[idx].lock, flags);
++		uec->ports[idx].ccx = FIELD_GET(GAOKUN_CCX_MASK,
++					     reg.port_data[idx * 2]);
++		spin_unlock_irqrestore(&uec->ports[idx].lock, flags);
++	}
+ 	gaokun_set_orientation(con, &uec->ports[idx]);
++	mutex_unlock(&con->ucsi->ppm_lock);
+ }
+ 
+ static const struct ucsi_operations gaokun_ucsi_ops = {
+@@ -273,146 +295,149 @@
+ 	spin_unlock_irqrestore(&port->lock, flags);
+ }
+ 
+-static int gaokun_ucsi_refresh(struct gaokun_ucsi *uec)
+-{
+-	struct gaokun_ucsi_reg ureg;
+-	int ret, idx;
+-
+-	ret = gaokun_ec_ucsi_get_reg(uec->ec, &ureg);
+-	if (ret)
+-		return GAOKUN_UCSI_NO_PORT_UPDATE;
+-
+-	uec->num_ports = ureg.num_ports;
+-	idx = GET_IDX(ureg.port_updt);
+-
+-	if (idx < 0 || idx >= ureg.num_ports)
+-		return GAOKUN_UCSI_NO_PORT_UPDATE;
+-
+-	gaokun_ucsi_port_update(&uec->ports[idx], ureg.port_data);
+-	return idx;
+-}
+-
+-static void gaokun_ucsi_handle_usb_mode(struct gaokun_ucsi_port *port)
++/*
++ * All sideband I/O and mux updates run in workqueue context under ppm_lock.
++ * The EC IRQ thread must remain available to complete UCSI commands.
++ */
++static int gaokun_ucsi_apply_port(struct gaokun_ucsi_port *port)
+ {
+ 	struct gaokun_ucsi *uec = port->ucsi;
+-	int idx = port->idx, ret;
++	bool dp = port->svid == USB_SID_DISPLAYPORT;
++	bool hpd = dp && port->hpd_state;
++	int ret;
++
++	gaokun_set_orientation(&uec->ucsi->connector[port->idx], port);
++
++	if (!port->applied || port->applied_ccx != port->ccx ||
++	    port->applied_svid != port->svid || port->applied_mode != port->mode) {
++		/* Drop HPD before taking lanes away from a live DP connection. */
++		if (port->applied_hpd && port->bridge)
++			drm_aux_hpd_bridge_notify(&port->bridge->dev,
++						 connector_status_disconnected);
++
++		port->dp_alt.svid = port->svid;
++		port->state.mode = port->mode;
++		port->state.alt = &port->dp_alt;
++		ret = typec_mux_set(port->typec_mux, &port->state);
++		if (ret) {
++			port->applied = false;
++			return ret;
++		}
++		port->applied_hpd = false;
++	}
++
++	if (port->bridge && (!port->applied || port->applied_hpd != hpd ||
++			     (hpd && port->hpd_irq)))
++		drm_aux_hpd_bridge_notify(&port->bridge->dev,
++					 hpd ? connector_status_connected :
++					 connector_status_disconnected);
++
++	port->applied = true;
++	port->applied_ccx = port->ccx;
++	port->applied_svid = port->svid;
++	port->applied_mode = port->mode;
++	port->applied_hpd = hpd;
++
++	return 0;
++}
++
++static void gaokun_ucsi_sync_worker(struct work_struct *work)
++{
++	struct gaokun_ucsi *uec = container_of(to_delayed_work(work),
++					     struct gaokun_ucsi, sync_work);
++	struct gaokun_ucsi_reg reg;
++	bool retry = false;
++	int i, ret;
++
++	mutex_lock(&uec->ucsi->ppm_lock);
++	ret = gaokun_ec_ucsi_get_reg(uec->ec, &reg);
++	if (ret || reg.num_ports != uec->num_ports) {
++		retry = true;
++		goto out;
++	}
+ 
+ 	/*
+-	 * For every typec port on this platform, the only mode-switch is
+-	 * controlled by its qmp combo phy which consumes svid and mode only.
++	 * port_updt is an ACK mask, not a connected-port bitmap. A monitor
++	 * present at boot can have HPD=1 with only the other port pending.
++	 * Always consume the complete snapshot, including disconnected ports.
+ 	 */
+-	port->dp_alt.svid = port->svid;
+-	port->state.mode = port->mode;
+-	port->state.alt = &port->dp_alt;
+-
+-	if (idx >= uec->num_ports) {
+-		dev_warn(uec->dev, "altmode port out of range: %d\n", idx);
+-		return;
+-	}
+-
+-	ret = typec_mux_set(port->typec_mux, &port->state);
+-	if (ret)
+-		dev_err(uec->dev, "failed to set mux %d\n", ret);
+-
+-	/* UCSI callback .connector_status() have set orientation */
+-	if (port->bridge && port->svid == USB_TYPEC_DP_SID)
+-		drm_aux_hpd_bridge_notify(&port->bridge->dev,
+-					  port->hpd_state ?
+-					  connector_status_connected :
+-					  connector_status_disconnected);
+-
+-	gaokun_ec_ucsi_pan_ack(uec->ec, port->idx);
+-}
+-
+-static void gaokun_ucsi_usb_notify_ind(struct gaokun_ucsi *uec)
+-{
+-	int idx;
+-
+-	if (!uec->ucsi->connector) { /* slow to register */
+-		dev_err_ratelimited(uec->dev, "ucsi connector is not initialized yet\n");
+-		return;
+-	}
+-
+-	idx = gaokun_ucsi_refresh(uec);
+-	if (idx == GAOKUN_UCSI_NO_PORT_UPDATE)
+-		gaokun_ec_ucsi_pan_ack(uec->ec, idx); /* ack directly if no update */
+-	else
+-		gaokun_ucsi_handle_usb_mode(&uec->ports[idx]);
+-}
+-
+-/*
+- * When inserting, 2 UCSI events(connector change) are followed by USB events.
+- * If we received one USB event, that means USB events are not blocked, so we
+- * can complelte for all ports, and we should signal all events.
+- */
+-static void gaokun_ucsi_complete_usb_ack(struct gaokun_ucsi *uec)
+-{
+-	struct gaokun_ucsi_port *port;
+-	int idx = 0;
+-
+-	while (idx < uec->num_ports) {
+-		port = &uec->ports[idx++];
+-		if (!completion_done(&port->usb_ack))
+-			complete_all(&port->usb_ack);
+-	}
+-}
+-
+-/*
+- * USB event is necessary for enabling altmode, the event should follow
+- * UCSI event, if not after timeout(this notify may be disabled somehow),
+- * then force to enable altmode.
+- */
+-static void gaokun_ucsi_handle_no_usb_event(struct gaokun_ucsi *uec, int idx)
+-{
+-	struct gaokun_ucsi_port *port;
+-
+-	port = &uec->ports[idx];
+-	if (!wait_for_completion_timeout(&port->usb_ack, 2 * HZ)) {
+-		dev_warn(uec->dev, "No USB EVENT, triggered by UCSI EVENT");
+-		gaokun_ucsi_usb_notify_ind(uec);
+-	}
++	for (i = 0; i < uec->num_ports; i++) {
++		gaokun_ucsi_port_update(&uec->ports[i], reg.port_data);
++		/* Replay level state, but deliver IRQ pulses only for new events. */
++		if (!(reg.port_updt & BIT(i)))
++			uec->ports[i].hpd_irq = 0;
++		/* Pair with ready publication after the core work has finished. */
++		if (smp_load_acquire(&uec->ready)) {
++			ret = gaokun_ucsi_apply_port(&uec->ports[i]);
++			if (ret) {
++				retry = true;
++				continue;
++			}
++		}
++
++		/* Drain early events too; registration will replay every port. */
++		if (reg.port_updt & BIT(i)) {
++			ret = gaokun_ec_ucsi_pan_ack(uec->ec, i);
++			if (ret)
++				retry = true;
++		}
++	}
++	if (!reg.port_updt && gaokun_ec_ucsi_pan_ack(uec->ec,
++						   GAOKUN_UCSI_NO_PORT_UPDATE))
++		retry = true;
++out:
++	mutex_unlock(&uec->ucsi->ppm_lock);
++	if (retry)
++		queue_delayed_work(system_wq, &uec->sync_work, HZ);
+ }
+ 
+ static int gaokun_ucsi_notify(struct notifier_block *nb,
+-			      unsigned long action, void *data)
+-{
++			    unsigned long action, void *data)
++{
++	struct gaokun_ucsi *uec = container_of(nb, struct gaokun_ucsi, nb);
+ 	u32 cci;
+-	int ret;
+-	struct gaokun_ucsi *uec = container_of(nb, struct gaokun_ucsi, nb);
+ 
+ 	switch (action) {
+ 	case EC_EVENT_USB:
+-		gaokun_ucsi_complete_usb_ack(uec);
+-		gaokun_ucsi_usb_notify_ind(uec);
++		mod_delayed_work(system_wq, &uec->sync_work, 0);
+ 		return NOTIFY_OK;
+-
+ 	case EC_EVENT_UCSI:
+-		ret = gaokun_ucsi_read_cci(uec->ucsi, &cci);
+-		if (ret)
++		if (gaokun_ucsi_read_cci(uec->ucsi, &cci))
+ 			return NOTIFY_DONE;
+ 
+ 		ucsi_notify_common(uec->ucsi, cci);
+-		if (UCSI_CCI_CONNECTOR(cci))
+-			gaokun_ucsi_handle_no_usb_event(uec, UCSI_CCI_CONNECTOR(cci) - 1);
+-
++		/*
++		 * USB events normally follow connector changes. If missing,
++		 * recover asynchronously; never wait in the EC IRQ notifier.
++		 * queue (not mod) keeps repeated CCIs from postponing recovery.
++		 */
++		if (UCSI_CCI_CONNECTOR(cci) &&
++		    UCSI_CCI_CONNECTOR(cci) <= uec->num_ports)
++			queue_delayed_work(system_wq, &uec->sync_work, 2 * HZ);
+ 		return NOTIFY_OK;
+-
+ 	default:
+ 		return NOTIFY_DONE;
+ 	}
+ }
+ 
++static void gaokun_ucsi_put_mux(void *mux)
++{
++	typec_mux_put(mux);
++}
++
+ static int gaokun_ucsi_ports_init(struct gaokun_ucsi *uec)
+ {
+ 	struct gaokun_ucsi_port *ucsi_port;
+-	struct gaokun_ucsi_reg ureg = {};
+ 	struct device *dev = uec->dev;
+ 	struct fwnode_handle *fwnode;
+ 	int i, ret, num_ports;
+ 	u32 port;
+ 
+-	gaokun_ec_ucsi_get_reg(uec->ec, &ureg);
+-	num_ports = ureg.num_ports;
++	/* Build the DRM graph without early EC traffic; initialize UCSI later. */
++	num_ports = device_get_child_node_count(dev);
++	if (!num_ports || num_ports > GAOKUN_UCSI_MAX_PORTS)
++		return -EINVAL;
++	uec->num_ports = num_ports;
+ 	uec->ports = devm_kcalloc(dev, num_ports, sizeof(*uec->ports),
+ 				  GFP_KERNEL);
+ 	if (!uec->ports)
+@@ -423,7 +448,6 @@
+ 		ucsi_port->ccx = USBC_CCX_NONE;
+ 		ucsi_port->idx = i;
+ 		ucsi_port->ucsi = uec;
+-		init_completion(&ucsi_port->usb_ack);
+ 		spin_lock_init(&ucsi_port->lock);
+ 	}
+ 
+@@ -435,9 +459,9 @@
+ 			return ret;
+ 		}
+ 
+-		if (port >= num_ports) {
+-			dev_warn(dev, "invalid connector number %d, ignoring\n", port);
+-			continue;
++		if (port >= num_ports || uec->ports[port].bridge) {
++			fwnode_handle_put(fwnode);
++			return -EINVAL;
+ 		}
+ 
+ 		ucsi_port = &uec->ports[port];
+@@ -454,6 +478,12 @@
+ 					     "failed to acquire mode-switch for port: %d\n",
+ 					     port);
+ 		}
++		ret = devm_add_action_or_reset(dev, gaokun_ucsi_put_mux,
++					      ucsi_port->typec_mux);
++		if (ret) {
++			fwnode_handle_put(fwnode);
++			return ret;
++		}
+ 	}
+ 	for (i = 0; i < num_ports; i++) {
+ 		if (!uec->ports[i].bridge)
+@@ -469,27 +499,71 @@
+ 
+ static void gaokun_ucsi_register_worker(struct work_struct *work)
+ {
+-	struct gaokun_ucsi *uec;
+-	struct ucsi *ucsi;
++	struct gaokun_ucsi *uec = container_of(to_delayed_work(work),
++					     struct gaokun_ucsi, work);
++	struct ucsi *ucsi = uec->ucsi;
+ 	int ret;
+ 
+-	uec = container_of(work, struct gaokun_ucsi, work.work);
+-	ucsi = uec->ucsi;
+-
+-	ret = gaokun_ec_register_notify(uec->ec, &uec->nb);
+-	if (ret) {
+-		dev_err_probe(ucsi->dev, ret, "notifier register failed\n");
++	if (!uec->notifier_registered) {
++		ret = gaokun_ec_register_notify(uec->ec, &uec->nb);
++		if (ret)
++			goto retry;
++		uec->notifier_registered = true;
++	}
++
++	if (!uec->registered) {
++		ret = ucsi_register(ucsi);
++		if (ret)
++			goto retry;
++		uec->registered = true;
++	}
++
++	/*
++	 * ucsi_register() only queues initialization. Wait for that work, not
++	 * an arbitrary delay, before dereferencing connector[]. No locks are
++	 * held here, so the notifier and sideband worker can make progress.
++	 */
++	flush_delayed_work(&ucsi->work);
++	if (delayed_work_pending(&ucsi->work)) {
++		/* The core is still waiting for a role-switch supplier. */
++		schedule_delayed_work(&uec->work, GAOKUN_UCSI_REGISTER_DELAY);
+ 		return;
+ 	}
+ 
+-	ret = ucsi_register(ucsi);
+-	if (ret) {
+-		dev_err_probe(ucsi->dev, ret, "ucsi register failed\n");
+-		gaokun_ec_unregister_notify(uec->ec, &uec->nb);
++	if (!ucsi->connector) {
++		/*
++		 * Retry only the UCSI core. Reprobing the auxiliary device would
++		 * unplug the HPD bridges already attached to the DRM encoder.
++		 */
++		mutex_lock(&ucsi->ppm_lock);
++		ucsi_unregister(ucsi);
++		mutex_unlock(&ucsi->ppm_lock);
++		uec->registered = false;
++		ret = -ETIMEDOUT;
++		goto retry;
++	}
++
++	if (ucsi->cap.num_connectors != uec->num_ports) {
++		dev_err(uec->dev, "UCSI/DT connector count mismatch: %u/%u\n",
++			ucsi->cap.num_connectors, uec->num_ports);
+ 		return;
+ 	}
+ 
+-	uec->registered = true;
++	/* Publish fully initialized connector[] to the sideband worker. */
++	smp_store_release(&uec->ready, true);
++	mod_delayed_work(system_wq, &uec->sync_work, 0);
++	return;
++
++retry:
++	if (uec->retries++ >= GAOKUN_UCSI_MAX_RETRIES) {
++		dev_err(uec->dev, "UCSI initialization failed after retries: %d\n",
++			ret);
++		return;
++	}
++
++	dev_warn(uec->dev, "retrying UCSI initialization in 10 seconds: %d\n",
++		 ret);
++	schedule_delayed_work(&uec->work, GAOKUN_UCSI_RETRY_DELAY);
+ }
+ 
+ static int gaokun_ucsi_probe(struct auxiliary_device *adev,
+@@ -510,6 +584,7 @@
+ 	uec->nb.notifier_call = gaokun_ucsi_notify;
+ 
+ 	INIT_DELAYED_WORK(&uec->work, gaokun_ucsi_register_worker);
++	INIT_DELAYED_WORK(&uec->sync_work, gaokun_ucsi_sync_worker);
+ 
+ 	ret = gaokun_ucsi_ports_init(uec);
+ 	if (ret)
+@@ -523,7 +598,7 @@
+ 	auxiliary_set_drvdata(adev, uec);
+ 
+ 	/* EC can't handle UCSI properly in the early stage */
+-	schedule_delayed_work(&uec->work, 3 * HZ);
++	schedule_delayed_work(&uec->work, GAOKUN_UCSI_REGISTER_DELAY);
+ 
+ 	return 0;
+ }
+@@ -531,16 +606,13 @@
+ static void gaokun_ucsi_remove(struct auxiliary_device *adev)
+ {
+ 	struct gaokun_ucsi *uec = auxiliary_get_drvdata(adev);
+-	int i;
+ 
+ 	disable_delayed_work_sync(&uec->work);
+-	if (uec->registered) {
++	if (uec->notifier_registered)
+ 		gaokun_ec_unregister_notify(uec->ec, &uec->nb);
++	disable_delayed_work_sync(&uec->sync_work);
++	if (uec->registered)
+ 		ucsi_unregister(uec->ucsi);
+-	}
+-
+-	for (i = 0; i < uec->num_ports; ++i)
+-		typec_mux_put(uec->ports[i].typec_mux);
+ 
+ 	ucsi_destroy(uec->ucsi);
+ }
+diff --git a/include/dt-bindings/firmware/qcom,scm.h b/include/dt-bindings/firmware/qcom,scm.h
+--- a/include/dt-bindings/firmware/qcom,scm.h
++++ b/include/dt-bindings/firmware/qcom,scm.h
+@@ -37,4 +37,7 @@
+ #define QCOM_SCM_VMID_OEMVM		0x31
+ #define QCOM_SCM_VMID_CP_ADSP_SHARED	0x33
+ 
++/* Special value intended for qcom,shm-bridge-vmid */
++#define QCOM_SCM_VMID_SELF_OWNER	0xffffffff
++
+ #endif
+diff --git a/include/linux/firmware/qcom/qcom_scm.h b/include/linux/firmware/qcom/qcom_scm.h
+--- a/include/linux/firmware/qcom/qcom_scm.h
++++ b/include/linux/firmware/qcom/qcom_scm.h
+@@ -167,6 +167,8 @@
+ 			       u64 ns_vmids, u64 *handle);
+ int qcom_scm_shm_bridge_delete(u64 handle);
+ 
++int qcom_scm_query_tpm_type(u64 *type);
++
+ #ifdef CONFIG_QCOM_QSEECOM
+ 
+ int qcom_scm_qseecom_app_get_id(const char *app_name, u32 *app_id);
+diff --git a/include/linux/remoteproc.h b/include/linux/remoteproc.h
+--- a/include/linux/remoteproc.h
++++ b/include/linux/remoteproc.h
+@@ -206,6 +206,27 @@
+ enum rproc_features {
+ 	RPROC_FEAT_ATTACH_ON_RECOVERY,
+ 	RPROC_MAX_FEATURES,
++};
++
++/**
++ * enum rproc_auto_boot - auto boot strategy for remoteproc during initial boot
++ *
++ * @RPROC_AUTO_BOOT_DISABLED: The remoteproc will be left offline (or detached).
++ * @RPROC_AUTO_BOOT_ATTACH_OR_START: The remoteproc will be attached (if it is
++ *				     already running). Otherwise, it will be
++ *				     started with new loaded firmware.
++ * @RPROC_FEAT_REBOOT_IF_FW_AVAILABLE: The remoteproc will be restarted if
++ *				       requesting new firmware succeeds. If
++ *				       the firmware is missing and the
++ *				       remoteproc is already running, it will
++ *				       be attached instead. A remoteproc
++ *				       implementing this must handle stop()
++ *				       being called in detached state.
++ */
++enum rproc_auto_boot {
++	RPROC_AUTO_BOOT_DISABLED,
++	RPROC_AUTO_BOOT_ATTACH_OR_START,
++	RPROC_AUTO_BOOT_RESTART_IF_FW_AVAILABLE,
+ };
+ 
+ /**
+@@ -289,7 +310,7 @@
+ 	struct resource_table *cached_table;
+ 	size_t table_sz;
+ 	bool has_iommu;
+-	bool auto_boot;
++	enum rproc_auto_boot auto_boot;
+ 	bool sysfs_read_only;
+ 	bool subdevs_started;
+ 	struct list_head dump_segments;
+diff --git a/include/linux/rpmsg.h b/include/linux/rpmsg.h
+--- a/include/linux/rpmsg.h
++++ b/include/linux/rpmsg.h
+@@ -177,6 +177,8 @@
+ struct rpmsg_endpoint *rpmsg_create_ept(struct rpmsg_device *,
+ 					rpmsg_rx_cb_t cb, void *priv,
+ 					struct rpmsg_channel_info chinfo);
++struct rpmsg_endpoint *rpmsg_dev_open_ept(struct rpmsg_device *rpdev,
++					  rpmsg_rx_cb_t cb, void *priv);
+ 
+ int rpmsg_send(struct rpmsg_endpoint *ept, const void *data, int len);
+ int rpmsg_sendto(struct rpmsg_endpoint *ept, const void *data, int len, u32 dst);
+@@ -245,6 +247,13 @@
+ 	return NULL;
+ }
+ 
++static inline struct rpmsg_endpoint *rpmsg_dev_open_ept(struct rpmsg_device *rpdev,
++						       rpmsg_rx_cb_t cb, void *priv)
++{
++	WARN_ON(1);
++	return NULL;
++}
++
+ static inline int rpmsg_send(struct rpmsg_endpoint *ept, const void *data, int len)
+ {
+ 	/* This shouldn't be possible */
+diff --git a/net/qrtr/smd.c b/net/qrtr/smd.c
+--- a/net/qrtr/smd.c
++++ b/net/qrtr/smd.c
+@@ -5,6 +5,7 @@
+  */
+ 
+ #include <linux/module.h>
++#include <linux/mutex.h>
+ #include <linux/skbuff.h>
+ #include <linux/rpmsg.h>
+ 
+@@ -14,17 +15,17 @@
+ 	struct qrtr_endpoint ep;
+ 	struct rpmsg_endpoint *channel;
+ 	struct device *dev;
++
++	/* Protect against channel open/close while sending */
++	struct mutex send_lock;
+ };
+ 
+ /* from smd to qrtr */
+ static int qcom_smd_qrtr_callback(struct rpmsg_device *rpdev,
+ 				  void *data, int len, void *priv, u32 addr)
+ {
+-	struct qrtr_smd_dev *qdev = dev_get_drvdata(&rpdev->dev);
++	struct qrtr_smd_dev *qdev = priv;
+ 	int rc;
+-
+-	if (!qdev)
+-		return -EAGAIN;
+ 
+ 	rc = qrtr_endpoint_post(&qdev->ep, data, len);
+ 	if (rc == -EINVAL) {
+@@ -46,7 +47,12 @@
+ 	if (rc)
+ 		goto out;
+ 
+-	rc = rpmsg_send(qdev->channel, skb->data, skb->len);
++	scoped_guard(mutex, &qdev->send_lock) {
++		if (qdev->channel)
++			rc = rpmsg_send(qdev->channel, skb->data, skb->len);
++		else
++			rc = -ENODEV;
++	}
+ 
+ out:
+ 	if (rc)
+@@ -65,13 +71,25 @@
+ 	if (!qdev)
+ 		return -ENOMEM;
+ 
+-	qdev->channel = rpdev->ept;
+ 	qdev->dev = &rpdev->dev;
+ 	qdev->ep.xmit = qcom_smd_qrtr_send;
++
++	rc = devm_mutex_init(&rpdev->dev, &qdev->send_lock);
++	if (rc)
++		return rc;
++
++	/* Block sending until we have fully opened the channel */
++	guard(mutex)(&qdev->send_lock);
+ 
+ 	rc = qrtr_endpoint_register(&qdev->ep, QRTR_EP_NID_AUTO);
+ 	if (rc)
+ 		return rc;
++
++	qdev->channel = rpmsg_dev_open_ept(rpdev, qcom_smd_qrtr_callback, qdev);
++	if (!qdev->channel) {
++		qrtr_endpoint_unregister(&qdev->ep);
++		return -EREMOTEIO;
++	}
+ 
+ 	dev_set_drvdata(&rpdev->dev, qdev);
+ 
+@@ -83,10 +101,16 @@
+ static void qcom_smd_qrtr_remove(struct rpmsg_device *rpdev)
+ {
+ 	struct qrtr_smd_dev *qdev = dev_get_drvdata(&rpdev->dev);
++	struct rpmsg_endpoint *ept;
+ 
++	/* We are about to close the channel, so stop all sending now */
++	scoped_guard(mutex, &qdev->send_lock) {
++		ept = qdev->channel;
++		qdev->channel = NULL;
++	}
++
++	rpmsg_destroy_ept(ept);
+ 	qrtr_endpoint_unregister(&qdev->ep);
+-
+-	dev_set_drvdata(&rpdev->dev, NULL);
+ }
+ 
+ static const struct rpmsg_device_id qcom_smd_qrtr_smd_match[] = {
+@@ -97,7 +121,6 @@
+ static struct rpmsg_driver qcom_smd_qrtr_driver = {
+ 	.probe = qcom_smd_qrtr_probe,
+ 	.remove = qcom_smd_qrtr_remove,
+-	.callback = qcom_smd_qrtr_callback,
+ 	.id_table = qcom_smd_qrtr_smd_match,
+ 	.drv = {
+ 		.name = "qcom_smd_qrtr",
