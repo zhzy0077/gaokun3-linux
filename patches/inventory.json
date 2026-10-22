@@ -453,6 +453,15 @@
       "source": "drivers/remoteproc/qcom_q6v5_pas.c:qcom_pas_read_boot_state",
       "evidence": "native delayed mappings/timeouts; hardware A/B pending",
       "sha256": "4c6c86159ee4f30751af3f54f548ce3e489aa394325e28f605d49c38d209e9af"
+    },
+    {
+      "id": "others/0019",
+      "path": "patches/others/0019-drm-msm-dpu-preserve-resources-on-color-updates.patch",
+      "category": "fix",
+      "code_fact": "Color-only updates previously reallocated CTL/LM/DSPP resources without refreshing encoder hardware pointers. Preserve allocations until a modeset; force a modeset when CTM/gamma changes DSPP requirements and clear unassigned DSPP pointers.",
+      "source": "drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c:dpu_crtc_atomic_check,dpu_crtc_check_mode_changed,dpu_crtc_assign_resources; upstream proposal https://lore.kernel.org/r/20260912-fd-kms-fix-smmu-v3-7-a7ddc6fe2032@oss.qualcomm.com/ (same root cause; independently tested local implementation)",
+      "evidence": "Gaokun3 live kprobe/DRM trace: baseline external-only transition assigns CTL_0 while encoder flushes CTL_1; patched module retains CTL_1 through three laptop/dual/external cycles with no IOMMU faults, commit timeouts or DP underruns. Physical DP unplug/reconnect and the subsequent external-only transition also passed; the user confirmed the built-in panel was off and the external picture remained normal afterward.",
+      "sha256": "f6370d673915c12ed5898613557a809069a2401c3e541fc71be6ad1f2fc82e59"
     }
   ],
   "removed": [

@@ -1,0 +1,68 @@
+From: zhzy0077 <zhzy0077@users.noreply.github.com>
+Subject: [PATCH] drm/msm/dpu: preserve resources across color-only updates
+
+Disabling the built-in display on Gaokun3 can update the remaining DP
+CRTC's color state without a modeset. Releasing and reserving resources
+then moves its CTL while the physical encoder retains the old CTL.
+Captured traces show CRTC 91 assigned CTL_0 while encoder 37 flushes
+CTL_1 with an empty pending mask, followed by IOMMU faults and underruns.
+
+Keep the existing resources for color-only updates. Request a modeset
+when CTM/gamma changes alter the need for DSPPs so the encoder receives
+the new resource assignment. Clear mixer DSPP pointers when the new
+allocation no longer includes them.
+
+The same root cause and allocation rule are described in the upstream
+proposal linked below, found after this fix was tested on Gaokun3.
+This local change also clears released DSPP pointers and retains the
+existing msm_atomic_check() behavior.
+
+Link: https://lore.kernel.org/r/20260912-fd-kms-fix-smmu-v3-7-a7ddc6fe2032@oss.qualcomm.com/
+Signed-off-by: zhzy0077 <zhzy0077@users.noreply.github.com>
+---
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
+@@ -1480,8 +1480,8 @@
+ 
+ 		cstate->mixers[i].hw_lm = to_dpu_hw_mixer(hw_lm[i]);
+ 		cstate->mixers[i].lm_ctl = to_dpu_hw_ctl(hw_ctl[ctl_idx]);
+-		if (i < num_dspp)
+-			cstate->mixers[i].hw_dspp = to_dpu_hw_dspp(hw_dspp[i]);
++		cstate->mixers[i].hw_dspp = i < num_dspp ?
++			to_dpu_hw_dspp(hw_dspp[i]) : NULL;
+ 	}
+ 
+ 	cstate->num_mixers = num_lm;
+@@ -1503,6 +1503,8 @@
+ 	struct drm_crtc *crtc = new_crtc_state->crtc;
+ 	bool clone_mode_enabled = drm_crtc_in_clone_mode(old_crtc_state);
+ 	bool clone_mode_requested = drm_crtc_in_clone_mode(new_crtc_state);
++	bool old_dspp = old_crtc_state->ctm || old_crtc_state->gamma_lut;
++	bool new_dspp = new_crtc_state->ctm || new_crtc_state->gamma_lut;
+ 
+ 	DRM_DEBUG_ATOMIC("%d\n", crtc->base.id);
+ 
+@@ -1512,6 +1514,10 @@
+ 			new_crtc_state->mode_changed = true;
+ 	}
+ 
++	/* A change in DSPP requirements needs new resources and encoder setup. */
++	if (old_dspp != new_dspp)
++		new_crtc_state->mode_changed = true;
++
+ 	if ((clone_mode_requested && !clone_mode_enabled) ||
+ 	    (!clone_mode_requested && clone_mode_enabled))
+ 		new_crtc_state->mode_changed = true;
+@@ -1534,9 +1540,8 @@
+ 
+ 	bool needs_dirtyfb = dpu_crtc_needs_dirtyfb(crtc_state);
+ 
+-	/* don't reallocate resources if only ACTIVE has beeen changed */
+-	if (crtc_state->mode_changed || crtc_state->connectors_changed ||
+-	    crtc_state->color_mgmt_changed) {
++	/* Color updates keep the resources installed by the last modeset. */
++	if (crtc_state->mode_changed || crtc_state->connectors_changed) {
+ 		rc = dpu_crtc_assign_resources(crtc, crtc_state);
+ 		if (rc < 0)
+ 			return rc;
