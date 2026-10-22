@@ -102,14 +102,11 @@ build_variant_rpms() {
     "$modules_stage/usr/lib" "$modules_stage/lib" "$devel_tree" \
     "$devel_stage/usr/lib/modules/$krel"
 
-  install -Dm644 "$out_dir/arch/arm64/boot/Image" \
+  install -Dm644 "$out_dir/arch/arm64/boot/vmlinuz.efi" \
     "$kernel_stage/boot/vmlinuz-$krel"
-  # Preserve the already-built compressed EFI image for small-ESP test boots.
-  # Normal RPM installation continues to use Image until hardware validation.
-  if [[ -f "$out_dir/arch/arm64/boot/vmlinuz.efi" ]]; then
-    install -m644 "$out_dir/arch/arm64/boot/vmlinuz.efi" "$ARTIFACT_DIR/vmlinuz-$krel.efi"
-    (cd "$ARTIFACT_DIR"; sha256sum "vmlinuz-$krel.efi" > "vmlinuz-$krel.efi.sha256")
-  fi
+  # Publish the same compressed EFI kernel that the RPM installs.
+  install -m644 "$out_dir/arch/arm64/boot/vmlinuz.efi" "$ARTIFACT_DIR/vmlinuz-$krel.efi"
+  (cd "$ARTIFACT_DIR"; sha256sum "vmlinuz-$krel.efi" > "vmlinuz-$krel.efi.sha256")
   install -Dm644 "$out_dir/System.map" \
     "$kernel_stage/boot/System.map-$krel"
   install -Dm644 "$out_dir/.config" \
@@ -117,7 +114,7 @@ build_variant_rpms() {
   install -Dm644 "$out_dir/arch/arm64/boot/dts/qcom/$dtb_name" \
     "$kernel_stage/boot/dtb-$krel/qcom/$dtb_name"
   cat > "$kernel_stage/usr/lib/dracut/dracut.conf.d/$dracut_conf" <<'EOF'
-hostonly="no"
+hostonly="yes"
 add_drivers+=" btrfs nvme phy-qcom-qmp-pcie phy-qcom-qmp-combo phy-qcom-qmp-usb phy-qcom-snps-femto-v2 usb-storage uas typec pci-pwrctrl-pwrseq ath11k ath11k_pci i2c-hid-of lpasscc_sc8280xp snd-soc-sc8280xp pinctrl_sc8280xp_lpass_lpi "
 install_items+=" /lib/firmware/qcom/a660_sqe.fw /lib/firmware/qcom/a660_gmu.bin /lib/firmware/qcom/sc8280xp/HUAWEI/gaokun3/qcdxkmsuc8280.mbn /lib/firmware/qcom/sc8280xp/HUAWEI/gaokun3/qcslpi8280.mbn /lib/firmware/qcom/sc8280xp/HUAWEI/gaokun3/qcadsp8280.mbn /lib/firmware/qcom/sc8280xp/HUAWEI/gaokun3/qccdsp8280.mbn /lib/firmware/qcom/sc8280xp/SC8280XP-HUAWEI-GAOKUN3-tplg.bin /lib/firmware/qcom/sc8280xp/HUAWEI/gaokun3/audioreach-tplg.bin "
 EOF

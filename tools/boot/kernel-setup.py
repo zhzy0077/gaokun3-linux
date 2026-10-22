@@ -159,7 +159,7 @@ def install(kernel, devicetree):
     dtb = ROOT / 'usr/lib/modules' / kernel / 'dtb' / devicetree
     assets = efi_assets(el2)
     # Generate exactly once. Passing it to kernel-install skips its dracut pass.
-    subprocess.run(['dracut', '--force', '--no-hostonly', '--no-hostonly-cmdline',
+    subprocess.run(['dracut', '--force', '--hostonly', '--no-hostonly-cmdline',
                     '--kver', kernel, str(initrd)], check=True)
     destination = ESP / token / kernel
     files = [(image, destination / 'linux'), (initrd, destination / initrd.name),

@@ -209,7 +209,7 @@ build_kernel() {
     sudo make O="$out_dir" ARCH=arm64 CROSS_COMPILE="$CROSS_COMPILE" INSTALL_MOD_PATH=/ modules_install
     sudo rm -f /lib/modules/"$krel"/{build,source}
 
-    sudo cp "$out_dir"/arch/arm64/boot/Image /boot/vmlinuz-"$krel"
+    sudo cp "$out_dir"/arch/arm64/boot/vmlinuz.efi /boot/vmlinuz-"$krel"
     sudo mkdir -p "$dtb_inst_dir"
     sudo cp "$out_dir"/arch/arm64/boot/dts/qcom/"$dtb_name" "$dtb_inst_dir"/"$dtb_name"
     sudo mkdir -p "$dtb_boot_dir"
@@ -243,7 +243,7 @@ build_kernel() {
     printf '%s\n' "$cmdline" >"$conf_root/cmdline"
     printf 'qcom/%s\n' "$dtb_name" >"$conf_root/devicetree"
 
-    sudo dracut --force --kver "$krel"
+    sudo dracut --force --hostonly --no-hostonly-cmdline --kver "$krel"
 
     echo "kernel-install inputs:"
     echo "  kernel release: $krel"
@@ -256,7 +256,7 @@ build_kernel() {
         sudo kernel-install --entry-token=machine-id remove "$krel" >/dev/null 2>&1 || true
         sudo env KERNEL_INSTALL_CONF_ROOT="$conf_root" \
             kernel-install --verbose --make-entry-directory=yes --entry-token=machine-id add \
-            "$krel" "/boot/vmlinuz-$krel"
+            "$krel" "/boot/vmlinuz-$krel" "/boot/$initrd_src"
     } || {
         rm -rf "$conf_root"
         trap - RETURN

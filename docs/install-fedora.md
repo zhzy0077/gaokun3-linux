@@ -28,7 +28,7 @@ Run this repository's **Build Package - RPMs Gaokun3** workflow on `main`, with 
 - `linux-firmware-gaokun3`
 - `gaokun3-platform`
 
-Use current-main builds: firmware release 5 or newer and platform release 8 or newer include the latest packaging changes. The kernel and modules must come from the same build.
+Use current-main builds: firmware release 5 or newer, platform release 9 or newer, and kernel release 17 or newer include the latest packaging changes. The kernel and modules must come from the same build.
 
 Install preparation tools on the preparation host:
 
@@ -100,6 +100,9 @@ set -e
 mountpoint -q /boot/efi && { echo 'Unexpected mounted EFI partition'; exit 1; }
 dnf install --allowerasing /opt/gaokun-rpms/*.rpm \
   systemd-boot-unsigned sdubby dracut-live
+# Remove Raspberry Pi boot files from the live image before installation.
+dnf remove --noautoremove bcm283x-firmware bcm2835-firmware \
+  bcm2711-firmware bcm2712-firmware bcm283x-overlays
 ```
 
 Review DNF's transaction. The Gaokun firmware replaces Fedora's overlapping Qualcomm/Atheros firmware packages. The standard Fedora live desktop and installer must remain installed. Package boot setup skips provisioning while `/boot/efi` is unmounted; that is expected at this stage.
@@ -196,7 +199,7 @@ Do not use the original ISO's media-check entry: the payload has intentionally c
 
 ## 6. Finalize the installed Gaokun boot entry
 
-The live system and installed system need different boot arguments. This step generates the installed root UUID, disk initramfs, DTB entry and DSP firmware copies using the packaged helper.
+The live system and installed system need different boot arguments. This step generates the installed root UUID, host-only disk initramfs, DTB entry and DSP firmware copies using the packaged helper. The kernel package supplies the compressed EFI executable.
 
 Close the installer and inspect `lsblk -f`. Set the root and EFI partitions selected in the installer below. These are the **installed system's partitions**, not the USB stick's.
 

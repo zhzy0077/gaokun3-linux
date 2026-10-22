@@ -5,7 +5,7 @@
 
 Name:           gaokun3-platform
 Version:        @PLATFORM_VERSION@
-Release:        8%{?dist}
+Release:        9%{?dist}
 Summary:        Hardware configuration for Huawei Gaokun3
 # The existing tool sources do not declare a common SPDX license.
 License:        LicenseRef-Unknown
@@ -23,7 +23,7 @@ Requires:       wireplumber
 Requires:       util-linux
 Requires:       systemd-udev
 Requires:       dracut
-Provides:       gaokun3-boot-integration = 2
+Provides:       gaokun3-boot-integration = 3
 %{?systemd_requires}
 
 %description
@@ -144,6 +144,9 @@ done
 %config(noreplace) %{_sysconfdir}/skel/.config/monitors.xml
 
 %changelog
+* Thu Oct 22 2026 Gaokun buildbot - @PLATFORM_VERSION@-9
+- Generate host-only initramfs images with the required Gaokun boot drivers
+
 * Wed Oct 21 2026 Gaokun buildbot - @PLATFORM_VERSION@-8
 - Keep device runtime configuration and remove the touchscreen tuning app
 
