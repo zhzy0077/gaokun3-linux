@@ -1,0 +1,43 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: zhzy0077 <zhzy0077@users.noreply.github.com>
+Date: Thu, 22 Oct 2026 12:00:00 +0800
+Subject: [PATCH] drm/msm/dp: restore audio after reconnect with active video
+
+A brief HPD drop clears the audio jack, but the following connection can
+leave the video stream enabled without another atomic enable. The audio
+jack then remains disconnected. This also occurs with external HPD
+bridges, which do not report ISR_HPD_REPLUG_COUNT in the hardware status.
+
+On Gaokun3, tracing captured a USB-C HPD disconnect followed 758 ms later
+by a connection, with video still active and no post-enable callback.
+ALSA retained a disconnected DP0 jack despite the connected display.
+
+After a successful connection, refresh post-enable state when the video
+stream is already powered on. This restores audio link parameters and
+the jack notification. New streams use the normal atomic-enable path.
+
+---
+diff --git a/drivers/gpu/drm/msm/dp/dp_display.c b/drivers/gpu/drm/msm/dp/dp_display.c
+--- a/drivers/gpu/drm/msm/dp/dp_display.c
++++ b/drivers/gpu/drm/msm/dp/dp_display.c
+@@ -1558,13 +1558,15 @@
+ 		   msm_dp_display->connector_type, hpd_link_status, status);
+ 
+ 	if (status == connector_status_connected) {
+-		if (hpd_link_status == ISR_HPD_REPLUG_COUNT) {
+-			msm_dp_hpd_unplug_handle(dp);
+-			msm_dp_hpd_plug_handle(dp);
+-		} else if (hpd_link_status == ISR_IRQ_HPD_PULSE_COUNT) {
++		if (hpd_link_status == ISR_IRQ_HPD_PULSE_COUNT) {
+ 			msm_dp_irq_hpd_handle(dp);
+ 		} else {
+-			msm_dp_hpd_plug_handle(dp);
++			if (hpd_link_status == ISR_HPD_REPLUG_COUNT)
++				msm_dp_hpd_unplug_handle(dp);
++
++			/* A brief HPD drop can leave the video stream enabled. */
++			if (!msm_dp_hpd_plug_handle(dp) && msm_dp_display->power_on)
++				msm_dp_display_post_enable(msm_dp_display);
+ 		}
+ 	} else {
+ 		msm_dp_hpd_unplug_handle(dp);

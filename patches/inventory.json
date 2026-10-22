@@ -266,13 +266,22 @@
       "sha256": "d4f43fce757b7f00484fda95fc28e366ce556cad9e740ac63fcfde11440f15f9"
     },
     {
+      "id": "others/0018",
+      "path": "patches/others/0018-drm-msm-dp-restore-audio-jack-after-hpd-replug.patch",
+      "category": "fix",
+      "code_fact": "Restore post-enable audio state after a successful HPD connection when video is already powered on, including external HPD bridges.",
+      "source": "drivers/gpu/drm/msm/dp/dp_display.c:msm_dp_bridge_hpd_notify; msm_dp_display_post_enable",
+      "evidence": "Gaokun3 live A/B: external HPD reconnect previously left DP0 off; revised module restored jack via post-enable from HPD handler after a 746 ms drop with video active. Matching module build ID verified; boot, physical unplug/reconnect, post-recovery PipeWire playback, patch application and checkpatch passed (2026-10-22).",
+      "sha256": "cf0c5665a5dc6eb381ae7d689e4bcbf3c204c6d939413d7bb5449a70d623a290"
+    },
+    {
       "id": "0099",
       "path": "patches/0099-arm64-gaokun3-import-local-dts-and-defconfig.patch",
       "category": "enablement+policy",
-      "code_fact": "板级 DTS 连接上述驱动与供电/中断/端点；采用 upstream PCIe port reset GPIO 和 Iris label。standalone defconfig 为兼容入口，CPU model 字符串只作展示。",
-      "source": "arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts; camera.dtsi; configs/gaokun3_defconfig; kernel/cpuinfo.c",
-      "evidence": "DTB/EL2 overlay; mirror checks; CPU string tests",
-      "sha256": "2d7bb7d2f18c3653110e64bbfbf9f4036eadab8746665f42c699ab78145b0a32"
+      "code_fact": "板级 DTS 连接上述驱动与供电/中断/端点；采用 upstream PCIe port reset GPIO 和 Iris label。standalone defconfig 为兼容入口，CPU model 字符串只作展示。 DP audio links connect DISPLAY_PORT_RX_0/1 to mdss0_dp0/1 through q6apm; the SC8280XP machine driver initializes DP0/DP1 jack controls.",
+      "source": "arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts; camera.dtsi; configs/gaokun3_defconfig; kernel/cpuinfo.c; sound/soc/qcom/sc8280xp.c:sc8280xp_snd_init; sound/soc/qcom/common.c:qcom_snd_dp_jack_setup",
+      "evidence": "DTB/EL2 overlay; mirror checks; CPU string tests; DP link consumers and T14s routing reference; board patch apply/mirror check",
+      "sha256": "adf33522aaa6e6c632a4acc0999e7b949cb6df1dd4becbffe720c6b0cd27b457"
     },
     {
       "id": "el2/0001",
