@@ -161,9 +161,9 @@
       "id": "others/0008",
       "path": "patches/others/0008-firmware-qcom-add-Gaokun-QSEE-TPM-validation.patch",
       "category": "experimental",
-      "code_fact": "新增 QSEE fTPM transport；默认 allow_probe=0，不承担普通 Fedora 启动功能。作为显式 opt-in 验证功能保留。",
+      "code_fact": "新增 QSEE fTPM transport；驱动默认 allow_probe=0，平台启动参数设置 allow_probe=1。保留命令白名单及 HLOS 固定控制区共享。",
       "source": "drivers/char/tpm/tpm_qcom_qsee.c",
-      "evidence": "protocol/native tests; runtime opt-in",
+      "evidence": "1978b4f: EL1/EL2, reboot, keyboard/RTC resume, 60 tests; 2026-10-22: 7.3 EL2 reboot with automatic TPM registration and random read; 45-second device wait eliminated",
       "sha256": "c33ca793de1d09dbb49110c83c5ac1fe3628d4dbaea294d89ad5f4071bde7da4"
     },
     {

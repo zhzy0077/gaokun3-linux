@@ -25,4 +25,6 @@ Validated on Gaokun3 with `7.3.0-gaokun3-el2+` on 2026-10-22: the EFI kernel shr
 
 The platform package supplies speaker/microphone routing, Bluetooth address setup, display orientation, module loading and kernel boot integration. Fedora supplies the desktop and standard device services.
 
+Platform boot defaults enable QSEE TPM with `tpm_qcom_qsee.allow_probe=1`, including kernel upgrades with an existing command line. An explicit `allow_probe=0` override is preserved. On 2026-10-22, reboot verification confirmed both TPM device nodes and random generation; the 45-second TPM device wait disappeared and total boot time fell from 76.6 to 35.5 seconds. The driver supports capability queries, self-tests, PCR reads and random generation; its command allowlist remains in place.
+
 EL2 boot uses `slbounceaa64.efi`, `tcblaunch.exe` and [qebspil](https://github.com/stephan-gh/qebspil). qebspil loads DSP images from the EFI partition before Linux attaches to them. The firmware RPM synchronizes these images to a mounted, writable qebspil EFI partition; kernel setup provisions the initial boot files. Reboot after firmware updates.

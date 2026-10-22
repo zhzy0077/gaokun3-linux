@@ -93,6 +93,19 @@ def target_cmdline():
     return value
 
 
+def boot_cmdline(cmdline, el2):
+    # Include defaults when upgrading an existing /etc/kernel/cmdline.
+    # Explicit administrator values (including allow_probe=0) win.
+    defaults = ['tpm_qcom_qsee.allow_probe=1']
+    if el2:
+        defaults.append('qcom_iris.firmware_direct=1')
+    keys = {arg.split('=', 1)[0].replace('-', '_') for arg in shlex.split(cmdline)}
+    for argument in defaults:
+        if argument.split('=', 1)[0] not in keys:
+            cmdline = cmdline.rstrip() + ' ' + argument + '\n'
+    return cmdline
+
+
 def mounted_esp():
     p = subprocess.run(['findmnt', '--json', '--mountpoint', str(ESP), '--output',
                         'TARGET,FSTYPE,OPTIONS'], text=True, capture_output=True)
@@ -147,12 +160,7 @@ def install(kernel, devicetree):
     if not (ROOT / 'etc/fstab').is_file() or not mounted_esp():
         print('Gaokun: target filesystems not mounted; image builder must finalize boot later.')
         return
-    cmdline = target_cmdline()
-    # Direct VPU2 firmware loading is validated for the EL2 variant.
-    # Preserve an explicit administrator override.
-    if el2 and not any(arg.split('=', 1)[0].replace('-', '_') ==
-                       'qcom_iris.firmware_direct' for arg in shlex.split(cmdline)):
-        cmdline = cmdline.rstrip() + ' qcom_iris.firmware_direct=1\n'
+    cmdline = boot_cmdline(target_cmdline(), el2)
     token = entry_identity()
     image = ROOT / 'boot' / ('vmlinuz-' + kernel)
     initrd = ROOT / 'boot' / ('initramfs-' + kernel + '.img')
