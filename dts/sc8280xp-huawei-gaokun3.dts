@@ -697,8 +697,7 @@
 		enable-gpios = <&tlmm 173 GPIO_ACTIVE_HIGH>;
 		bat-gpios = <&tlmm 41 GPIO_ACTIVE_HIGH>;
 
-		// not stable yet, so comment out it
-		// wakeup-source;
+		wakeup-source;
 
 		pinctrl-0 = <&ec_default>;
 		pinctrl-names = "default";
