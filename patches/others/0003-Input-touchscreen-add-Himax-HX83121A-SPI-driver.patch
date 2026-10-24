@@ -857,7 +857,7 @@ index 000000000..a756f02cd
 +	ts->panel_enabled = true;
 +	himax_unlock(ts);
 +
-+	mod_delayed_work(system_wq, &ts->panel_reinit_work,
++	mod_delayed_work(system_percpu_wq, &ts->panel_reinit_work,
 +			 msecs_to_jiffies(HIMAX_PANEL_ENABLE_SETTLE_MS));
 +	return 0;
 +}

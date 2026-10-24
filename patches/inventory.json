@@ -125,10 +125,10 @@
       "id": "others/0003",
       "path": "patches/others/0003-Input-touchscreen-add-Himax-HX83121A-SPI-driver.patch",
       "category": "enablement",
-      "code_fact": "增加 SPI 驱动、事件栈读取、触点追踪和 input 上报；本地 DTS 匹配该 compatible，GPIO174 在 reset 周期驱动。",
+      "code_fact": "增加 SPI 驱动、事件栈读取、触点追踪和 input 上报；本地 DTS 匹配该 compatible，GPIO174 在 reset 周期驱动。 Panel reinitialization uses system_percpu_wq, the supported replacement for system_wq, preserving per-CPU scheduling and the existing delay/cancellation.",
       "source": "drivers/input/touchscreen/himax-spi-core.c; hx-algo.c",
-      "evidence": "DT/consumer; Kbuild; GPIO mode tests",
-      "sha256": "823c932d57e5c5a6e93df084e36a00f901f92dfddf8ab4b4dae6e25d541b304a"
+      "evidence": "DT/consumer; Kbuild; GPIO mode tests; workqueue API review; patched himax-spi-core.o compilation",
+      "sha256": "ab57437b40fbc58725f888b906b383e3e5906629aed439afc399a62b4cffe005"
     },
     {
       "id": "others/0004",
