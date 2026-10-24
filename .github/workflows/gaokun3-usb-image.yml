@@ -33,7 +33,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release download "$PACKAGE_RELEASE" --pattern package-manifest.json --dir work
+          # Allow dispatch while the selected RPM build is publishing its release.
+          for attempt in $(seq 1 40); do
+            if gh release download "$PACKAGE_RELEASE" --pattern package-manifest.json --dir work --clobber; then
+              break
+            fi
+            if [[ "$attempt" == 40 ]]; then
+              echo "RPM release manifest did not become available" >&2
+              exit 1
+            fi
+            echo "Waiting for RPM release $PACKAGE_RELEASE ($attempt/40)"
+            sleep 30
+          done
           python3 - <<'PY'
           import json, os, pathlib, subprocess
           manifest = json.loads(pathlib.Path('work/package-manifest.json').read_text())
