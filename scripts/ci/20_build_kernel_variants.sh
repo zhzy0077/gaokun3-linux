@@ -68,7 +68,7 @@ configure_git_identity "$KERN_SRC"
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/upstream/*.patch
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/others/*.patch
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/media/*.patch
-git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0099-arm64-gaokun3-import-local-dts-and-defconfig.patch
+python3 "$GAOKUN_DIR/tools/kernel/import-board-files.py" "$KERN_SRC"
 
 set_kernel_test_suffix "$KERN_SRC" "$KERNEL_TEST_SUFFIX"
 if [[ -n "$KERNEL_TEST_SUFFIX" ]]; then

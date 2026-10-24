@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
+#include "sc8280xp-huawei-gaokun3.dts"
+
+&cluster_pd {
+	/* Shared cluster collapse resets Gaokun3 in the EL2 boot flow. */
+	/delete-property/ domain-idle-states;
+};

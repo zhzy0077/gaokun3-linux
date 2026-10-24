@@ -17,9 +17,8 @@ applying the common EL2 overlay. A compiled overlay cannot represent a
 Keep the standard Gaokun3 DTB and other SC8280XP EL2 boards unchanged.
 
 ---
- arch/arm64/boot/dts/qcom/Makefile                         | 2 +-
- .../dts/qcom/sc8280xp-huawei-gaokun3-el2-base.dts          | 8 ++++++++
- 2 files changed, 9 insertions(+), 1 deletion(-)
+ arch/arm64/boot/dts/qcom/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/arch/arm64/boot/dts/qcom/Makefile b/arch/arm64/boot/dts/qcom/Makefile
 --- a/arch/arm64/boot/dts/qcom/Makefile
@@ -29,16 +28,3 @@ diff --git a/arch/arm64/boot/dts/qcom/Makefile b/arch/arm64/boot/dts/qcom/Makefi
 +sc8280xp-huawei-gaokun3-el2-dtbs	:= sc8280xp-huawei-gaokun3-el2-base.dtb sc8280xp-el2.dtbo
  dtb-$(CONFIG_ARCH_QCOM)	+= sc8280xp-huawei-gaokun3.dtb sc8280xp-huawei-gaokun3-el2.dtb
  sc8280xp-lenovo-thinkpad-x13s-el2-dtbs	:= sc8280xp-lenovo-thinkpad-x13s.dtb sc8280xp-el2.dtbo
-diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-el2-base.dts b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-el2-base.dts
-new file mode 100644
---- /dev/null
-+++ b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-el2-base.dts
-@@ -0,0 +1,8 @@
-+// SPDX-License-Identifier: BSD-3-Clause
-+
-+#include "sc8280xp-huawei-gaokun3.dts"
-+
-+&cluster_pd {
-+	/* Shared cluster collapse resets Gaokun3 in the EL2 boot flow. */
-+	/delete-property/ domain-idle-states;
-+};

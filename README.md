@@ -6,6 +6,8 @@ The reviewed kernel source is pinned in [kernel-source.env](kernel-source.env).
 ## Contents
 
 - `patches/`, `dts/`, `defconfig/`: kernel changes, device trees and Fedora configuration.
+
+`dts/*.dts`, `dts/*.dtsi` and `defconfig/gaokun3_defconfig` are the authoritative board sources. Local and CI builds import them into the kernel checkout with `tools/kernel/import-board-files.py` after standard patches and before EL2 patches. Local rebuilds refresh these files, including when switching variants; commit or stash edits inside the kernel checkout first. Existing checkouts with an older patch inventory require a fresh `KERN_SRC` directory.
 - `firmware/`: device firmware and redistribution notices; [source manifest](docs/firmware-provenance.json) and [update findings](docs/firmware-provenance.md).
 - `packaging/rpm/`: kernel, modules, development headers, firmware and platform RPMs.
 - `scripts/`: local kernel builds and CI packaging.

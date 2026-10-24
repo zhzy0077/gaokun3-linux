@@ -275,15 +275,6 @@
       "sha256": "cf0c5665a5dc6eb381ae7d689e4bcbf3c204c6d939413d7bb5449a70d623a290"
     },
     {
-      "id": "0099",
-      "path": "patches/0099-arm64-gaokun3-import-local-dts-and-defconfig.patch",
-      "category": "enablement+policy",
-      "code_fact": "板级 DTS 连接上述驱动与供电/中断/端点；采用 upstream PCIe port reset GPIO 和 Iris label。standalone defconfig 为兼容入口，CPU model 字符串只作展示。 DP audio links connect DISPLAY_PORT_RX_0/1 to mdss0_dp0/1 through q6apm; the SC8280XP machine driver initializes DP0/DP1 jack controls.",
-      "source": "arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts; camera.dtsi; configs/gaokun3_defconfig; kernel/cpuinfo.c; sound/soc/qcom/sc8280xp.c:sc8280xp_snd_init; sound/soc/qcom/common.c:qcom_snd_dp_jack_setup",
-      "evidence": "DTB/EL2 overlay; mirror checks; CPU string tests; DP link consumers and T14s routing reference; board patch apply/mirror check",
-      "sha256": "adf33522aaa6e6c632a4acc0999e7b949cb6df1dd4becbffe720c6b0cd27b457"
-    },
-    {
       "id": "el2/0001",
       "path": "patches/el2/0001-soc-qcom-smp2p-Kick-after-requesting-interrupt.patch",
       "category": "fix",
@@ -458,10 +449,10 @@
       "id": "el2/0025",
       "path": "patches/el2/0025-arm64-dts-qcom-gaokun3-el2-disable-cluster-collapse.patch",
       "category": "workaround",
-      "code_fact": "Gaokun3 EL2 s2idle resets when shared cluster collapse is available. Remove only the cluster domain-idle-states property in a board-specific EL2 base DTB, retaining individual CPU collapse and the standard board DTB. The final EL2 DTB applies the common overlay to this base.",
+      "code_fact": "Select the Gaokun3 EL2 base imported from dts/sc8280xp-huawei-gaokun3-el2-base.dts. This base removes shared cluster collapse while retaining individual CPU collapse; the final EL2 DTB applies the common overlay to it.",
       "source": "arch/arm64/boot/dts/qcom/Makefile; sc8280xp-huawei-gaokun3-el2-base.dts; drivers/cpuidle/cpuidle-psci-domain.c:psci_pd_power_off",
       "evidence": "2026-10-24 hardware A/B: CPU0-WFI and CPU4-WFI trials passed; cluster-property removal passed all-CPU collapse, RTC wake and systemd/power-button wake; PMIC PS_HOLD hard-reset log; patch application, base/overlay DT compilation and semantic DT comparison",
-      "sha256": "2a2357ae2d155b9e34cba2c5df81174e78f2f325d31269c7946d13515dcd27d1"
+      "sha256": "1a9c179ade7353cabb7e2a6df3973db03ac7f1e9047e972633db7c811ebf2631"
     },
     {
       "id": "others/0019",
@@ -471,6 +462,15 @@
       "source": "drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c:dpu_crtc_atomic_check,dpu_crtc_check_mode_changed,dpu_crtc_assign_resources; upstream proposal https://lore.kernel.org/r/20260912-fd-kms-fix-smmu-v3-7-a7ddc6fe2032@oss.qualcomm.com/ (same root cause; independently tested local implementation)",
       "evidence": "Gaokun3 live kprobe/DRM trace: baseline external-only transition assigns CTL_0 while encoder flushes CTL_1; patched module retains CTL_1 through three laptop/dual/external cycles with no IOMMU faults, commit timeouts or DP underruns. Physical DP unplug/reconnect and the subsequent external-only transition also passed; the user confirmed the built-in panel was off and the external picture remained normal afterward.",
       "sha256": "f6370d673915c12ed5898613557a809069a2401c3e541fc71be6ad1f2fc82e59"
+    },
+    {
+      "id": "others/0020",
+      "path": "patches/others/0020-arm64-gaokun3-report-cpu-model.patch",
+      "category": "policy",
+      "code_fact": "Preserve the Gaokun3-specific CPU model string previously included in the board import patch.",
+      "source": "arch/arm64/kernel/cpuinfo.c:c_show",
+      "evidence": "Identical CPU-info diff extracted from reviewed 0099 patch; patch application check",
+      "sha256": "a22b2f67499030388c39229a50e51b10a84f8d720e707c7afd82c36a5897c113"
     }
   ],
   "removed": [
@@ -533,6 +533,12 @@
       "former_path": "patches/el2/0019-hack-soc-qcom-pmic_glink-Avoid-platform-rpmsg-probe-.patch",
       "decision": "remove-no-device",
       "code_fact": "Gaokun live DT 和板级 DTS 无 qcom,pmic-glink platform 设备，Type-C/电池走 Huawei EC；无需改全局 platform/rpmsg 注册顺序。"
+    },
+    {
+      "id": "0099",
+      "former_path": "patches/0099-arm64-gaokun3-import-local-dts-and-defconfig.patch",
+      "decision": "replace-with-authoritative-board-files",
+      "code_fact": "Builds import dts/*.dts, dts/*.dtsi and defconfig/gaokun3_defconfig directly through tools/kernel/import-board-files.py. CPU model change retained in others/0020."
     }
   ]
 }

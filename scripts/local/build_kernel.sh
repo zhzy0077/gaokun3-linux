@@ -105,7 +105,7 @@ ensure_source_tree() {
     git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/upstream/*.patch
     git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/others/*.patch
     git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/media/*.patch
-    git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0099-arm64-gaokun3-import-local-dts-and-defconfig.patch
+    python3 "$GAOKUN_DIR/tools/kernel/import-board-files.py" "$KERN_SRC"
     sha256sum "$GAOKUN_DIR/patches/inventory.json" | cut -d " " -f1 > "$KERN_SRC/.gaokun-patch-inventory.sha256"
 }
 
@@ -134,26 +134,29 @@ build_kernel() {
     cd "$KERN_SRC"
     current_state="$(el2_state)"
 
+    # Refresh board sources beneath the temporary EL2 commit on every build.
+    if [[ "$current_state" == "el2" ]]; then
+        if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
+            echo "Commit or stash tracked kernel changes before switching variants" >&2
+            exit 1
+        fi
+        git reset --hard HEAD~1
+        current_state=standard
+    elif [[ "$current_state" != "standard" ]]; then
+        echo "Restore the kernel checkout to a standard state before importing board files" >&2
+        exit 1
+    fi
+    configure_git_identity
+    python3 "$GAOKUN_DIR/tools/kernel/import-board-files.py" "$KERN_SRC"
+
     if [[ "$mode" == "el2" ]]; then
         out_dir="$KERN_OUT_EL2"
         dtb_name="sc8280xp-huawei-gaokun3-el2.dtb"
 
         echo -e "\n=== Preparing Source Tree for EL2 Kernel ==="
-        case "$current_state" in
-            standard)
-                echo "Applying EL2 patches to source tree..."
-                git apply --index "$GAOKUN_DIR"/patches/el2/*.patch
-                git commit -m "Apply EL2 patches"
-                ;;
-            el2)
-                echo "Source tree is already patched for EL2."
-                ;;
-            *)
-                echo "Source tree already contains EL2 changes, but the last commit is not the expected temporary EL2 commit." >&2
-                echo "Please restore the tree to a clean standard-patched state before using this helper." >&2
-                exit 1
-                ;;
-        esac
+        echo "Applying EL2 patches to source tree..."
+        git apply --index "$GAOKUN_DIR"/patches/el2/*.patch
+        git commit -m "Apply EL2 patches"
 
         mkdir -p "$out_dir"
         make O="$out_dir" ARCH=arm64 CROSS_COMPILE="$CROSS_COMPILE" gaokun3_defconfig
@@ -163,21 +166,6 @@ build_kernel() {
         dtb_name="sc8280xp-huawei-gaokun3.dtb"
 
         echo -e "\n=== Preparing Source Tree for Standard Kernel ==="
-        case "$current_state" in
-            el2)
-                echo "Reverting EL2 patches to restore standard source tree..."
-                git reset --hard HEAD~1
-                ;;
-            standard)
-                echo "Source tree is already in standard state."
-                ;;
-            *)
-                echo "Source tree looks EL2-patched, but the last commit is not the expected temporary EL2 commit." >&2
-                echo "Refusing to run git reset --hard HEAD~1 on an unexpected history shape." >&2
-                exit 1
-                ;;
-        esac
-
         mkdir -p "$out_dir"
         make O="$out_dir" ARCH=arm64 CROSS_COMPILE="$CROSS_COMPILE" gaokun3_defconfig
     fi
