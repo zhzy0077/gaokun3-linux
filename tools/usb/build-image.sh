@@ -111,7 +111,7 @@ rm -f /etc/kernel/cmdline
 systemctl set-default graphical.target
 systemctl enable gdm NetworkManager
 CHROOT
-mount "${target_loop}p1" "$work/target/boot/efi"
+mount -o umask=0077 "${target_loop}p1" "$work/target/boot/efi"
 chroot "$work/target" /bin/bash -euxo pipefail <<'CHROOT'
 mapfile -t kernels < <(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d -name '*-gaokun3-el2*' -printf '%f\n')
 [[ ${#kernels[@]} == 1 ]]
@@ -120,7 +120,21 @@ krel=${kernels[0]}
 bootctl --esp-path=/boot/efi --no-variables install
 token=$(cat /etc/kernel/entry-token)
 printf 'default %s-%s.conf\ntimeout 5\n' "$token" "$krel" > /boot/efi/loader/loader.conf
-file "/boot/efi/$token/$krel/linux" | grep 'zstd compressed'
+file "/boot/efi/$token/$krel/linux"
+python3 - "/boot/efi/$token/$krel/linux" <<'PYVERIFY'
+from pathlib import Path
+import struct, sys
+image = Path(sys.argv[1]).read_bytes()
+assert image[:4] == b'MZ\0\0' and image[4:8] == b'zimg', 'Missing EFI zboot header'
+assert image[24:29] == b'zstd\0', 'Kernel payload is not Zstd'
+payload, size = struct.unpack_from('<II', image, 8)
+assert payload + size <= len(image), 'Truncated kernel payload'
+assert image[payload:payload + 4] == bytes.fromhex('28b52ffd'), 'Invalid Zstd frame'
+pe = struct.unpack_from('<I', image, 0x3c)[0]
+assert image[pe:pe + 4] == b'PE\0\0', 'Missing PE header'
+assert struct.unpack_from('<H', image, pe + 4)[0] == 0xaa64, 'Kernel is not ARM64'
+print(f'Validated ARM64 EFI zboot kernel: {len(image)} bytes, Zstd payload {size} bytes')
+PYVERIFY
 entry="/boot/efi/loader/entries/$token-$krel.conf"
 cat "$entry"
 grep -q "root=$(findmnt -n -o SOURCE --fstab --target /)" "$entry"
