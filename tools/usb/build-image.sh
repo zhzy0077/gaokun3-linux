@@ -141,6 +141,9 @@ assert struct.unpack_from('<H', image, pe + 4)[0] == 0xaa64, 'Kernel is not ARM6
 print(f'Validated ARM64 EFI zboot kernel: {len(image)} bytes, Zstd payload {size} bytes')
 PYVERIFY
 entry="/boot/efi/loader/entries/$token-$krel.conf"
+# kernel-install pins the build-time identity on the command line. A reusable
+# image must let first boot generate its own identity after /etc/machine-id is cleared.
+sed -i -E 's/ systemd\.machine_id=[^ ]+//g' "$entry"
 cat "$entry"
 grep -q "root=$(findmnt -n -o SOURCE --fstab --target /)" "$entry"
 lsinitrd -m "/boot/initramfs-$krel.img"
