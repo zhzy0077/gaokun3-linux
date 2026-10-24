@@ -87,6 +87,13 @@ mount -t tmpfs tmpfs "$work/target/run"
 rm -f "$work/target/etc/resolv.conf"
 cp -L /etc/resolv.conf "$work/target/etc/resolv.conf"
 chroot "$work/target" /bin/bash -euxo pipefail <<'CHROOT'
+# Fedora owns hw2.1 as a directory; our firmware RPM replaces it with a
+# symlink. Remove the superseded packages in a separate transaction so RPM
+# does not reject that directory-to-symlink transition during replacement.
+mapfile -t old_firmware < <(rpm -qa --qf '%{NAME}\n' | grep -E '^(atheros-firmware|qcom-firmware)$' || true)
+if (( ${#old_firmware[@]} )); then
+    dnf -y remove --noautoremove "${old_firmware[@]}"
+fi
 # Install normally so dependencies, RPM metadata and scriptlets remain consistent.
 dnf -y install --allowerasing /var/tmp/gaokun-rpms/*.rpm \
     systemd-boot-unsigned sdubby dracut e2fsprogs cloud-utils-growpart rsync file
