@@ -6,9 +6,11 @@ Preparation works from **Windows, macOS or Linux, on x86-64 or ARM64**. The prep
 
 The image builder starts with Fedora's official preinstalled [Workstation ARM disk image](https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/aarch64/images/). It installs the Gaokun RPMs and creates the matching initramfs on a native ARM GitHub runner. It copies normal filesystems into the USB layout; there is no live ISO filesystem to unpack and repack. XZ is only the download compression around the finished disk image.
 
-This new image workflow requires its first CI run and hardware boot validation. The kernel, firmware and boot helper come from the existing RPM workflow.
+The [first completed image build](https://github.com/zhzy0077/gaokun3-linux/actions/runs/40104840473) passed on 2026-10-24: EFI kernel validation, initramfs generation, filesystem checks, and release checksum verification succeeded. Its initramfs is about 50 MiB and its compressed disk image about 2.44 GiB. Hardware boot validation remains pending. The kernel, firmware and boot helper come from the existing RPM workflow.
 
 ## 1. Build or download the USB image
+
+Download the [verified image release](https://github.com/zhzy0077/gaokun3-linux/releases/tag/gaokun3-usb-40104840473-1), or build a newer one as follows.
 
 In this repository's GitHub **Actions** tab:
 
