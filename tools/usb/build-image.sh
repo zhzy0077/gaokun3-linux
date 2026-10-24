@@ -143,8 +143,9 @@ printf '%s\n' "$krel" > /usr/share/gaokun3/usb-kernel-release
 dnf clean all
 rm -rf /var/tmp/gaokun-rpms
 # Let each flashed installation receive a new identity on first boot.
-rm -f /var/lib/dbus/machine-id /var/lib/systemd/random-seed /etc/ssh/ssh_host_*
+rm -f /var/lib/dbus/machine-id /var/lib/systemd/random-seed /boot/efi/loader/random-seed /etc/ssh/ssh_host_*
 truncate -s 0 /etc/machine-id
+mkdir -p /var/lib/dbus
 ln -s /etc/machine-id /var/lib/dbus/machine-id
 ln -sfn ../run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 # Relabel offline while the target ARM userspace and policy are available.
@@ -154,7 +155,9 @@ CHROOT
 sync
 umount -R "$work/target"
 # Discard free blocks so compression does not retain deleted package/cache data.
-e2fsck -f -p "${target_loop}p2"
+fsck_status=0
+e2fsck -f -p "${target_loop}p2" || fsck_status=$?
+(( fsck_status <= 1 ))
 mount "${target_loop}p2" "$work/target"
 fstrim "$work/target"
 umount "$work/target"

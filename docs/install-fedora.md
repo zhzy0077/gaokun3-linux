@@ -116,6 +116,7 @@ set -euo pipefail
 # Give the internal installation its own identity and EFI entry directory.
 rm -f /etc/machine-id /var/lib/dbus/machine-id /etc/kernel/entry-token /etc/kernel/cmdline
 systemd-machine-id-setup
+mkdir -p /var/lib/dbus
 ln -sf /etc/machine-id /var/lib/dbus/machine-id
 /usr/libexec/gaokun3/kernel-setup "$(uname -r)" qcom/sc8280xp-huawei-gaokun3-el2.dtb
 bootctl --esp-path=/boot/efi --no-variables install
