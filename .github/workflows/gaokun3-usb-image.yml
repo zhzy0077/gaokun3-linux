@@ -1,0 +1,101 @@
+name: Build Fedora USB Image - Gaokun3
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_release:
+        description: Existing RPM release tag containing standard + EL2 packages
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-usb:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    env:
+      PACKAGE_RELEASE: ${{ inputs.package_release }}
+      FEDORA_IMAGE: Fedora-Workstation-Disk-44-1.7.aarch64.raw.xz
+      FEDORA_IMAGE_SHA256: 0361c13141e6f57e24d6ee5227066c33a45f7f92a95f41d0bbd343e4fd05da18
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install image tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y btrfs-progs dosfstools e2fsprogs parted rsync xz-utils util-linux
+          mkdir -p work/rpms output
+
+      - name: Download matching RPMs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release download "$PACKAGE_RELEASE" --pattern package-manifest.json --dir work
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          manifest = json.loads(pathlib.Path('work/package-manifest.json').read_text())
+          assert manifest['package_release_tag'] == os.environ['PACKAGE_RELEASE']
+          assert manifest['build_el2'] is True
+          packages = manifest['kernels']['el2']['packages']
+          names = [packages['kernel'], packages['kernel_modules'],
+                   manifest['packages']['firmware'], manifest['packages']['platform']]
+          assert len(set(names)) == 4
+          for name in names:
+              assert pathlib.Path(name).name == name and name.endswith('.rpm')
+              subprocess.run(['gh', 'release', 'download', os.environ['PACKAGE_RELEASE'],
+                              '--pattern', name, '--dir', 'work/rpms'], check=True)
+          PY
+
+      - name: Download and verify Fedora disk image
+        run: |
+          curl --fail --location --retry 3 \
+            "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/aarch64/images/$FEDORA_IMAGE" \
+            -o "work/$FEDORA_IMAGE"
+          printf '%s  %s\n' "$FEDORA_IMAGE_SHA256" "work/$FEDORA_IMAGE" | sha256sum --check
+          xz -dc "work/$FEDORA_IMAGE" | dd of=work/fedora.raw bs=4M conv=sparse status=progress
+          rm "work/$FEDORA_IMAGE"
+
+      - name: Adapt installed Fedora system on native ARM
+        run: |
+          sudo tools/usb/build-image.sh work/fedora.raw work/rpms output/fedora-gaokun3-usb.raw
+          sudo rm work/fedora.raw
+          sudo chown "$(id -u):$(id -g)" output/fedora-gaokun3-usb.raw
+
+      - name: Compress and checksum the disk image
+        run: |
+          xz -T2 -3 output/fedora-gaokun3-usb.raw
+          (cd output && sha256sum fedora-gaokun3-usb.raw.xz > SHA256SUMS)
+          cp work/package-manifest.json output/
+          printf 'Image tooling commit: %s\nRPM release: %s\nFedora image SHA256: %s\n' \
+            "$GITHUB_SHA" "$PACKAGE_RELEASE" "$FEDORA_IMAGE_SHA256" > output/image-build.txt
+
+      - name: Prepare release assets below the per-file limit
+        run: |
+          python3 tools/usb/package-image.py output/fedora-gaokun3-usb.raw.xz
+          cp tools/usb/join-image.sh tools/usb/join-image.ps1 output/
+          rm output/fedora-gaokun3-usb.raw.xz
+
+      - name: Publish USB image release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="gaokun3-usb-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cat > work/release-notes.md <<'NOTES'
+          Full Fedora Workstation installation for the Gaokun3 USB drive.
+
+          Download all numbered image parts, SHA256SUMS, SHA256SUMS.parts, and
+          the join script for your OS into one directory. Run join-image.ps1
+          on Windows or `bash join-image.sh` on Linux/macOS, then flash the
+          resulting fedora-gaokun3-usb.raw.xz with balenaEtcher.
+
+          See docs/install-fedora.md for installation and internal-disk migration.
+          This image workflow is awaiting hardware boot validation.
+          NOTES
+          gh release create "$tag" output/* --target "$GITHUB_SHA" \
+            --title "Fedora 44 USB - Gaokun3 ($GITHUB_RUN_NUMBER)" \
+            --notes-file work/release-notes.md --prerelease --latest=false
+          printf 'USB image release: https://github.com/%s/releases/tag/%s\n' "$GITHUB_REPOSITORY" "$tag" >> "$GITHUB_STEP_SUMMARY"

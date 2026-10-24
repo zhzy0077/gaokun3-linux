@@ -15,13 +15,13 @@ The reviewed kernel source is pinned in [kernel-source.env](kernel-source.env).
 
 ## Build and install
 
-To adapt the official aarch64 ISO onto a bootable USB stick and install with Fedora's installer, follow the [fresh-install guide](docs/install-fedora.md).
+To create a full Fedora installation on USB from Linux, Windows or macOS, then optionally copy it to the internal disk, follow the [installation guide](docs/install-fedora.md).
 
 Run the **Build Package - RPMs Gaokun3** workflow in GitHub Actions to build Fedora packages. Select `build_el2` for the virtualization-enabled kernel used on this device. For a local kernel build, run `bash scripts/local/build_kernel.sh` on Fedora.
 
 Install the matching platform, firmware, kernel and modules RPMs with `sudo dnf install ./<package>.rpm`. Development headers are needed for external module builds. Keep Secure Boot disabled for these unsigned kernels and EFI loaders.
 
-Kernel packages install a Zstd-compressed, self-decompressing EFI kernel and generate a host-only initramfs with the Gaokun boot drivers. The standalone release `.efi` contains the same kernel as the RPM. USB live-image preparation explicitly uses a generic initramfs.
+Kernel packages install a Zstd-compressed, self-decompressing EFI kernel and generate a host-only initramfs with the Gaokun boot drivers. The standalone release `.efi` contains the same kernel as the RPM. The USB disk-image workflow prepares a full Fedora installation on a native ARM runner and explicitly includes the Gaokun USB boot drivers.
 
 Validated on Gaokun3 with `7.3.0-gaokun3-el2+` on 2026-10-22: the EFI kernel shrank from 52.2 to 14.4 MiB and the initramfs from 82.0 to 58.8 MiB. After removing the Raspberry Pi boot packages, the factory ESP had 93 MiB free. Reboot checks confirmed KVM, GPU initialization, Wi-Fi, Bluetooth, DSP attachment and audio device registration.
 
