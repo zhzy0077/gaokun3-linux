@@ -10,6 +10,11 @@ fi
     echo 'Run as root on a native aarch64 Linux builder (the GitHub workflow supplies one).' >&2
     exit 1
 }
+# Keep image mounts out of other services' mount namespaces on the runner.
+# Otherwise an inherited mount can keep the loop filesystem busy after umount.
+if [[ ${GAOKUN_USB_PRIVATE_MOUNTS:-0} != 1 ]]; then
+    exec unshare --mount --propagation private env GAOKUN_USB_PRIVATE_MOUNTS=1 "$0" "$@"
+fi
 source_image=$(realpath "$1")
 rpm_dir=$(realpath "$2")
 output_image=$(realpath -m "$3")
