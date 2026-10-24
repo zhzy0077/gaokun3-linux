@@ -455,6 +455,15 @@
       "sha256": "4c6c86159ee4f30751af3f54f548ce3e489aa394325e28f605d49c38d209e9af"
     },
     {
+      "id": "el2/0025",
+      "path": "patches/el2/0025-arm64-dts-qcom-gaokun3-el2-disable-cluster-collapse.patch",
+      "category": "workaround",
+      "code_fact": "Gaokun3 EL2 s2idle resets when shared cluster collapse is available. Remove only the cluster domain-idle-states property in a board-specific EL2 base DTB, retaining individual CPU collapse and the standard board DTB. The final EL2 DTB applies the common overlay to this base.",
+      "source": "arch/arm64/boot/dts/qcom/Makefile; sc8280xp-huawei-gaokun3-el2-base.dts; drivers/cpuidle/cpuidle-psci-domain.c:psci_pd_power_off",
+      "evidence": "2026-10-24 hardware A/B: CPU0-WFI and CPU4-WFI trials passed; cluster-property removal passed all-CPU collapse, RTC wake and systemd/power-button wake; PMIC PS_HOLD hard-reset log; patch application, base/overlay DT compilation and semantic DT comparison",
+      "sha256": "2a2357ae2d155b9e34cba2c5df81174e78f2f325d31269c7946d13515dcd27d1"
+    },
+    {
       "id": "others/0019",
       "path": "patches/others/0019-drm-msm-dpu-preserve-resources-on-color-updates.patch",
       "category": "fix",
