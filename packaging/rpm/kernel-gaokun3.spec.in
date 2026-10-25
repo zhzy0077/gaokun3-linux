@@ -3,7 +3,7 @@
 
 Name:           @PKG_NAME@
 Version:        @KREL_VERSION@
-Release:        17%{?dist}
+Release:        18%{?dist}
 Summary:        Kernel image, DTB, config, and System.map for the gaokun3 kernel
 License:        GPL-2.0-only
 ExclusiveArch:  aarch64
@@ -47,6 +47,9 @@ fi
 /usr/lib/dracut/dracut.conf.d/90-gaokun3-@KREL@.conf
 
 %changelog
+* Sun Oct 25 2026 Gaokun buildbot - @KREL_VERSION@-18
+- Honor downstream USB wakeups when checking pending port resumes
+
 * Thu Oct 22 2026 Gaokun buildbot - @KREL_VERSION@-17
 - Install the compressed EFI kernel and default to a host-only initramfs
 

@@ -471,6 +471,15 @@
       "source": "arch/arm64/kernel/cpuinfo.c:c_show",
       "evidence": "Identical CPU-info diff extracted from reviewed 0099 patch; patch application check",
       "sha256": "a22b2f67499030388c39229a50e51b10a84f8d720e707c7afd82c36a5897c113"
+    },
+    {
+      "id": "others/0021",
+      "path": "patches/others/0021-usb-xhci-check-pending-descendant-wakeups.patch",
+      "category": "fix",
+      "code_fact": "xhci_bus_suspend checks pending port resumes only when the root hub's own do_remote_wakeup is set. Use usb_wakeup_enabled_descendants, whose cached count hub_suspend prepares before HCD bus suspend, to also honor enabled downstream devices. Keep the root hub's own policy for connection, disconnection and overcurrent wake bits.",
+      "source": "drivers/usb/host/xhci-hub.c:xhci_bus_suspend; drivers/usb/core/hub.c:hub_suspend,usb_wakeup_enabled_descendants; drivers/usb/host/xhci-ring.c:handle_port_status",
+      "evidence": "Gaokun3 s2idle A/B/A on 2026-10-25: with xHCI wake disabled throughout, root-hub wake disabled/enabled/disabled gave keyboard wake failure/success/failure. Both failed traces entered system suspend with keyboard port 1-3 already in Resume; the successful trace slept for 15.86 seconds before USB PHY IRQ 204. This validates the root-hub policy workaround; the descendant-aware kernel change requires a rebuilt-kernel test. Locked upstream xhci-hub.c matches the running kernel source.",
+      "sha256": "19fa94da96cd0de92e196eef3f98b7be145d768d87fc5c7a8ab83c588f3fc7d5"
     }
   ],
   "removed": [

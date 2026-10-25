@@ -1,0 +1,35 @@
+From: Gaokun3 maintainers <zhzy0077@users.noreply.github.com>
+Subject: [PATCH] usb: xhci: check pending descendant wakeups before bus suspend
+
+A downstream keyboard can start remote resume between its port suspend
+and root-hub suspend. The pending-resume check in xhci_bus_suspend()
+currently depends on the root hub's own wakeup policy, even when the
+keyboard is enabled for remote wakeup. With root-hub wakeup disabled,
+the controller can be halted with the keyboard port still in Resume.
+
+Use the USB core's count of wakeup-enabled devices for this check.
+hub_suspend() collects the descendant count before the HCD suspends the
+bus, and the helper also includes the root hub itself. Port connection,
+disconnection and overcurrent wake events retain the root hub's policy.
+
+Signed-off-by: Gaokun3 maintainers <zhzy0077@users.noreply.github.com>
+---
+ drivers/usb/host/xhci-hub.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/usb/host/xhci-hub.c b/drivers/usb/host/xhci-hub.c
+--- a/drivers/usb/host/xhci-hub.c
++++ b/drivers/usb/host/xhci-hub.c
+@@ -1703,7 +1703,11 @@ int xhci_bus_suspend(struct usb_hcd *hcd)
+ 
+ 	spin_lock_irqsave(&xhci->lock, flags);
+ 
+-	if (wake_enabled) {
++	/*
++	 * A child can signal wakeup with root-hub wakeup disabled. Keep the
++	 * controller running until any pending resume has been handled.
++	 */
++	if (usb_wakeup_enabled_descendants(hcd->self.root_hub)) {
+ 		if (bus_state->resuming_ports ||	/* USB2 */
+ 		    bus_state->port_remote_wakeup) {	/* USB3 */
+ 			spin_unlock_irqrestore(&xhci->lock, flags);
