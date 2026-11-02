@@ -1,0 +1,22 @@
+module gaokun3_fingerprint 1.0;
+
+require {
+    type fprintd_t;
+    type gpio_device_t;
+    type tmpfs_t;
+    attribute device_node;
+    attribute file_type;
+    class chr_file { getattr open read write ioctl map };
+    class file { create getattr open read write setattr map ioctl lock };
+}
+
+type gaokun3_fp_tee_device_t;
+typeattribute gaokun3_fp_tee_device_t device_node;
+
+allow fprintd_t gpio_device_t:chr_file { getattr open read write ioctl };
+allow fprintd_t gaokun3_fp_tee_device_t:chr_file { getattr open read write ioctl map };
+
+type gaokun3_fp_shm_t;
+typeattribute gaokun3_fp_shm_t file_type;
+type_transition fprintd_t tmpfs_t:file gaokun3_fp_shm_t;
+allow fprintd_t gaokun3_fp_shm_t:file { create getattr open read write setattr map ioctl lock };

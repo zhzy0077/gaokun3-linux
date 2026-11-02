@@ -1,0 +1,12 @@
+#!/usr/bin/bash
+set -euo pipefail
+[[ $# == 1 ]] || exit 2
+case "$1" in
+  listener-enroll-series-wait|listener-verify-wait|listener-delete-template|listener-template-count) ;;
+  *) exit 2 ;;
+esac
+export GAOKUN3_FP_AUTOMATIC=1
+exec /opt/gaokun3-fingerprint/native/reset-mcu /usr/bin/python3 \
+    /opt/gaokun3-fingerprint/native/run-qtee-client.py \
+    /opt/gaokun3-fingerprint/native/qtee-client \
+    /usr/lib/firmware/qcom/sc8280xp/HUAWEI/gaokun3/fingerpr.mbn "$1"

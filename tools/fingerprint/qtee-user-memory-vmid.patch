@@ -1,0 +1,48 @@
+From: Gaokun3 developers <gaokun-buildbot@localhost>
+Subject: [PATCH] tee: qcomtee: probe user memory bridge VMID policy
+
+Keep platform bridge policy for invocation buffers and expose a controlled
+HLOS/self-owner comparison for user memory objects in the fp4 experiment.
+
+diff --git a/drivers/tee/qcomtee/shm.c b/drivers/tee/qcomtee/shm.c
+--- a/drivers/tee/qcomtee/shm.c
++++ b/drivers/tee/qcomtee/shm.c
+@@ -6,7 +6,10 @@
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
+ #include <linux/firmware/qcom/qcom_tzmem.h>
++#include <linux/firmware/qcom/qcom_scm.h>
+ #include <linux/mm.h>
++#include <linux/module.h>
++#include <linux/tee_core.h>
+ 
+ #include "qcomtee.h"
+ 
+@@ -99,10 +102,27 @@
+ 
+ /* Dynamic shared memory pool based on tee_dyn_shm_alloc_helper(). */
+ 
++
++static unsigned int user_bridge_mode;
++module_param(user_bridge_mode, uint, 0400);
++MODULE_PARM_DESC(user_bridge_mode, "User memory bridge: 0=platform, 1=HLOS, 2=SELF_OWNER+HLOS");
++
+ static int qcomtee_shm_register(struct tee_context *ctx, struct tee_shm *shm,
+ 				struct page **pages, size_t num_pages,
+ 				unsigned long start)
+ {
++	if (!(shm->flags & TEE_SHM_PRIV) && user_bridge_mode) {
++		u64 size_flags = shm->size | BIT_ULL(9);
++
++		if (user_bridge_mode > 2)
++			return -EINVAL;
++		if (user_bridge_mode == 2)
++			size_flags |= BIT_ULL(1) | ((u64)QCOM_SCM_PERM_RW << 2);
++		return qcom_scm_shm_bridge_create(shm->paddr | QCOM_SCM_PERM_RW,
++						shm->paddr | QCOM_SCM_PERM_RW,
++						size_flags, QCOM_SCM_VMID_HLOS,
++						&shm->sec_world_id);
++	}
+ 	return qcom_tzmem_shm_bridge_create(shm->paddr, shm->size,
+ 					    &shm->sec_world_id);
+ }
