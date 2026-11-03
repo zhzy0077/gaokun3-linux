@@ -1,0 +1,54 @@
+%global debug_package %{nil}
+%global _debugsource_packages 0
+
+Name:           gaokun3-fingerprint
+Version:        @FINGERPRINT_VERSION@
+Release:        1%{?dist}
+Summary:        FTE7001 fingerprint support for Gaokun3
+License:        GPL-2.0-only AND LGPL-2.1-or-later
+ExclusiveArch:  aarch64
+Source0:        @SOURCE_NAME@
+Requires:       fprintd
+Requires:       linux-firmware-gaokun3
+Requires:       policycoreutils
+Requires:       policycoreutils-python-utils
+Requires:       gaokun3-qcomtee-user-bridge
+%{?systemd_requires}
+
+%description
+FTE7001 fingerprint support through qcomtee and fprintd.
+
+%prep
+%setup -q -c -T
+tar -xzf %{SOURCE0}
+
+%install
+mkdir -p %{buildroot}
+cp -a etc opt usr %{buildroot}/
+
+%post
+semodule -i %{_datadir}/selinux/packages/gaokun3_fingerprint.pp
+semanage fcontext -a -t gaokun3_fp_tee_device_t /dev/tee0 2>/dev/null || \
+    semanage fcontext -m -t gaokun3_fp_tee_device_t /dev/tee0
+semanage fcontext -a -t fprintd_var_lib_t '/var/lib/gaokun3-fingerprint/secure-files(/.*)?' 2>/dev/null || \
+    semanage fcontext -m -t fprintd_var_lib_t '/var/lib/gaokun3-fingerprint/secure-files(/.*)?'
+restorecon -RF /opt/gaokun3-fingerprint /var/lib/gaokun3-fingerprint /dev/tee0
+systemctl daemon-reload
+echo 'Gaokun3 fingerprint support will become active after reboot.'
+
+%preun
+if [ "$1" -eq 0 ]; then
+    systemctl stop fprintd.service || :
+fi
+
+%postun
+if [ "$1" -eq 0 ]; then
+    semodule -r gaokun3_fingerprint || :
+    systemctl daemon-reload
+fi
+
+%files
+/etc/modprobe.d/gaokun3-fingerprint.conf
+/etc/systemd/system/fprintd.service.d/gaokun3-fingerprint.conf
+/opt/gaokun3-fingerprint
+/usr/share/selinux/packages/gaokun3_fingerprint.pp

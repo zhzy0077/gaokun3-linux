@@ -242,6 +242,8 @@ fi
 build_firmware_rpm
 bash "$GAOKUN_DIR/scripts/ci/71_build_platform_rpm.sh"
 PLATFORM_RPM="$(cat "$WORKDIR/platform-rpm-name.txt")"
+bash "$GAOKUN_DIR/scripts/ci/72_build_fingerprint_rpm.sh"
+FINGERPRINT_RPM="$(cat "$WORKDIR/fingerprint-rpm-name.txt")"
 
 EL2_MANIFEST_BLOCK=""
 EL2_RELEASE_BLOCK=""
@@ -292,7 +294,8 @@ cat >"$ARTIFACT_DIR/package-manifest.json" <<EOF
   },
   "packages": {
     "firmware": "${FIRMWARE_RPM}",
-    "platform": "${PLATFORM_RPM}"
+    "platform": "${PLATFORM_RPM}",
+    "fingerprint": "${FINGERPRINT_RPM}"
   }
 }
 EOF
@@ -315,4 +318,5 @@ cat >"$ARTIFACT_DIR/package-release-body.md" <<EOF
 ${EL2_RELEASE_BLOCK}
 - \`${FIRMWARE_RPM}\`
 - \`${PLATFORM_RPM}\`
+- \`${FINGERPRINT_RPM}\`
 EOF

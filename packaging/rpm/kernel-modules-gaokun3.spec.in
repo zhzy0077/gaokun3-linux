@@ -9,6 +9,7 @@ License:        GPL-2.0-only
 ExclusiveArch:  aarch64
 Source0:        @SOURCE_NAME@
 Requires:       @REQUIRES_KERNEL@ = %{version}-%{release}
+Provides:       gaokun3-qcomtee-user-bridge = %{version}-%{release}
 
 %description
 Kernel modules for the gaokun3 kernel @KREL@.

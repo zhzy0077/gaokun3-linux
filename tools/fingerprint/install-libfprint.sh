@@ -8,7 +8,7 @@ stage=$(realpath "$1")
 native=$(realpath "$2")
 tools_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 prefix=/opt/gaokun3-fingerprint
-[[ $(cat /sys/module/qcomtee/parameters/user_bridge_mode) == [12] ]]
+modinfo qcomtee >/dev/null
 [[ -f "$stage/opt/gaokun3-fingerprint/libfprint/lib64/libfprint-2.so.2.0.0" ]]
 [[ -x "$native/qtee-client" && -x "$native/reset-mcu" ]]
 firmware=/usr/lib/firmware/qcom/sc8280xp/HUAWEI/gaokun3/fingerpr.mbn
@@ -20,6 +20,7 @@ chown -R root:root "$prefix/libfprint"
 install -m 0755 "$native/qtee-client" "$native/reset-mcu" \
     "$tools_dir/run-qtee-client.py" "$prefix/native/"
 install -m 0755 "$tools_dir/fingerprint-helper" "$prefix/"
+install -Dm644 "$tools_dir/qcomtee.conf" /etc/modprobe.d/gaokun3-fingerprint.conf
 install -d -m 0700 /var/lib/gaokun3-fingerprint/secure-files
 policy=$(mktemp -d)
 trap 'rm -rf "$policy"' EXIT
@@ -35,6 +36,11 @@ restorecon /dev/tee0
 install -D -m 0644 "$tools_dir/fprintd-override.conf" \
     /etc/systemd/system/fprintd.service.d/gaokun3-fingerprint.conf
 systemctl daemon-reload
-systemctl start fprintd.service
-busctl call net.reactivated.Fprint /net/reactivated/Fprint/Manager \
-    net.reactivated.Fprint.Manager GetDevices
+if [[ -r /sys/module/qcomtee/parameters/user_bridge_mode ]] &&
+   [[ $(cat /sys/module/qcomtee/parameters/user_bridge_mode) == [12] ]]; then
+    systemctl start fprintd.service
+    busctl call net.reactivated.Fprint /net/reactivated/Fprint/Manager \
+        net.reactivated.Fprint.Manager GetDevices
+else
+    echo 'qcomtee.user_bridge_mode=1 will take effect after reboot.'
+fi

@@ -18,6 +18,10 @@ libfprint 驱动基于提交 `80a4b5ec612892c5c056c48dddaa561452cf37ec`，通过
 `FP_FTE7001_QTEE=enabled` 提供一个硬件模板槽位。fprintd override 从
 `/opt/gaokun3-fingerprint/libfprint` 加载该库，并将存储目录限定为可写路径。
 
+内核模块参数默认值保持 `qcomtee.user_bridge_mode=0`。指纹安装项写入
+`/etc/modprobe.d/gaokun3-fingerprint.conf`，使安装了指纹支持的系统在加载 qcomtee 时
+使用模式 1；移除该安装项并重启后恢复默认值。
+
 ## 构建和安装
 
 实验内核通过现有 `scripts/ci/20_build_kernel_variants.sh` 和
