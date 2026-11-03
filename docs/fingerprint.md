@@ -5,7 +5,8 @@ Gaokun3 的 FTE7001 指纹器通过 Qualcomm TEE 中的原厂 `fingerpr.mbn` 访
 的 quic-teec，注册 GPFS listener，并通过 UID 122 加载原厂 TA。
 
 `qcomtee` 对用户 listener 内存使用平台默认 bridge 策略时，TA 的 GPFS 内存对象
-不可用。`qtee-user-memory-vmid.patch` 为非 `TEE_SHM_PRIV` 内存增加受控 VMID 策略：
+不可用。内核补丁 `patches/others/0022-tee-qcomtee-add-user-memory-bridge-vmid-policy.patch`
+为非 `TEE_SHM_PRIV` 内存增加受控 VMID 策略：
 `qcomtee.user_bridge_mode=1` 使用 HLOS，`=2` 使用 SELF_OWNER+HLOS。私有调用缓冲
 继续使用平台策略。真机使用模式 1。
 
