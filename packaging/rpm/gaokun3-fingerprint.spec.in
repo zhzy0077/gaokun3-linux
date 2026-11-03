@@ -27,28 +27,30 @@ mkdir -p %{buildroot}
 cp -a etc opt usr %{buildroot}/
 
 %post
-semodule -i %{_datadir}/selinux/packages/gaokun3_fingerprint.pp
-semanage fcontext -a -t gaokun3_fp_tee_device_t /dev/tee0 2>/dev/null || \
-    semanage fcontext -m -t gaokun3_fp_tee_device_t /dev/tee0
-semanage fcontext -a -t fprintd_var_lib_t '/var/lib/gaokun3-fingerprint/secure-files(/.*)?' 2>/dev/null || \
-    semanage fcontext -m -t fprintd_var_lib_t '/var/lib/gaokun3-fingerprint/secure-files(/.*)?'
-restorecon -RF /opt/gaokun3-fingerprint /var/lib/gaokun3-fingerprint /dev/tee0
 systemctl daemon-reload
+systemctl enable gaokun3-fingerprint-selinux.service
+if [ -e /var/lib/selinux/targeted/active/policy.kern ]; then
+    /opt/gaokun3-fingerprint/install-selinux-policy
+fi
 echo 'Gaokun3 fingerprint support will become active after reboot.'
 
 %preun
 if [ "$1" -eq 0 ]; then
     systemctl stop fprintd.service || :
+    systemctl disable gaokun3-fingerprint-selinux.service || :
 fi
 
 %postun
 if [ "$1" -eq 0 ]; then
-    semodule -r gaokun3_fingerprint || :
+    if [ -e /var/lib/selinux/targeted/active/policy.kern ]; then
+        semodule -r gaokun3_fingerprint || :
+    fi
     systemctl daemon-reload
 fi
 
 %files
 /etc/modprobe.d/gaokun3-fingerprint.conf
 /etc/systemd/system/fprintd.service.d/gaokun3-fingerprint.conf
+/etc/systemd/system/gaokun3-fingerprint-selinux.service
 /opt/gaokun3-fingerprint
 /usr/share/selinux/packages/gaokun3_fingerprint.pp

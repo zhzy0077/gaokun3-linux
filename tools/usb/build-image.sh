@@ -21,7 +21,16 @@ output_image=$(realpath -m "$3")
 [[ -f "$source_image" && -d "$rpm_dir" && ! -e "$output_image" ]]
 shopt -s nullglob
 rpms=("$rpm_dir"/*.rpm)
-[[ ${#rpms[@]} == 4 ]] || { echo 'Supply exactly the four matching EL2/runtime RPMs.' >&2; exit 1; }
+[[ ${#rpms[@]} == 4 || ${#rpms[@]} == 5 ]] || {
+    echo 'Supply the four matching EL2/runtime RPMs, optionally with gaokun3-fingerprint.' >&2
+    exit 1
+}
+fingerprint_rpms=("$rpm_dir"/gaokun3-fingerprint-*.rpm)
+(( ${#fingerprint_rpms[@]} <= 1 )) || { echo 'Supply at most one gaokun3-fingerprint RPM.' >&2; exit 1; }
+if [[ ${#rpms[@]} == 5 && ${#fingerprint_rpms[@]} != 1 ]]; then
+    echo 'The fifth RPM must be gaokun3-fingerprint.' >&2
+    exit 1
+fi
 for command in losetup mount umount rsync parted mkfs.vfat mkfs.ext4 blkid chroot; do
     command -v "$command" >/dev/null
 done
@@ -103,6 +112,9 @@ fi
 dnf -y install --allowerasing /var/tmp/gaokun-rpms/*.rpm \
     systemd-boot-unsigned sdubby dracut e2fsprogs cloud-utils-growpart rsync file
 rpm -q kernel-gaokun3-el2 kernel-modules-gaokun3-el2 linux-firmware-gaokun3 gaokun3-platform
+if compgen -G '/var/tmp/gaokun-rpms/gaokun3-fingerprint-*.rpm' >/dev/null; then
+    rpm -q gaokun3-fingerprint
+fi
 # Firmware packages for other ARM boards can consume substantial ESP space.
 mapfile -t pi_packages < <(rpm -qa --qf '%{NAME}\n' | grep -E '^bcm(283x-firmware|2835-firmware|2711-firmware|2712-firmware|283x-overlays)$' || true)
 if (( ${#pi_packages[@]} )); then dnf -y remove --noautoremove "${pi_packages[@]}"; fi
@@ -157,8 +169,13 @@ mkdir -p /var/lib/dbus
 ln -s /etc/machine-id /var/lib/dbus/machine-id
 ln -sfn ../run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 # Relabel offline while the target ARM userspace and policy are available.
-setfiles -F -e /dev -e /proc -e /sys -e /run -e /boot/efi \
-    /etc/selinux/targeted/contexts/files/file_contexts /
+# Builders whose kernel has SELinux disabled cannot write security.selinux
+# extended attributes.  Request the equivalent relabel during the target's
+# first boot, where Fedora has SELinux enabled.
+if ! setfiles -F -e /dev -e /proc -e /sys -e /run -e /boot/efi \
+    /etc/selinux/targeted/contexts/files/file_contexts /; then
+    touch /.autorelabel
+fi
 CHROOT
 sync
 umount -R "$work/target"
