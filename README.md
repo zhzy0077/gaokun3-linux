@@ -19,7 +19,7 @@ To create a full Fedora installation on USB from Linux, Windows or macOS, then o
 
 Run the **Build Package - RPMs Gaokun3** workflow in GitHub Actions to build Fedora packages. Select `build_el2` for the virtualization-enabled kernel used on this device. For a local kernel build, run `bash scripts/local/build_kernel.sh` on Fedora.
 
-Install the matching platform, firmware, kernel and modules RPMs with `sudo dnf install ./<package>.rpm`. Development headers are needed for external module builds. Keep Secure Boot disabled for these unsigned kernels and EFI loaders.
+Install the matching platform, firmware, kernel and modules RPMs with `sudo dnf install ./<package>.rpm`. Install `gaokun3-fingerprint` from the same release to enable the FTE7001 fingerprint reader. Development headers are needed for external module builds. Keep Secure Boot disabled for these unsigned kernels and EFI loaders.
 
 Kernel packages install a Zstd-compressed, self-decompressing EFI kernel and generate a host-only initramfs with the Gaokun boot drivers. The standalone release `.efi` contains the same kernel as the RPM. The USB disk-image workflow prepares a full Fedora installation on a native ARM runner and explicitly includes the Gaokun USB boot drivers.
 
@@ -32,3 +32,21 @@ Platform boot defaults enable QSEE TPM with `tpm_qcom_qsee.allow_probe=1`, inclu
 EL2 boot uses `slbounceaa64.efi`, `tcblaunch.exe` and [qebspil](https://github.com/stephan-gh/qebspil). qebspil loads DSP images from the EFI partition before Linux attaches to them. The firmware RPM synchronizes these images to a mounted, writable qebspil EFI partition; kernel setup provisions the initial boot files. Reboot after firmware updates.
 
 Gaokun3 EL2 builds disable shared CPU-cluster collapse to prevent suspend-triggered hard resets, while retaining individual CPU power collapse. The board-specific EL2 device-tree base carries this workaround into local builds and kernel RPMs. RTC wake and systemd suspend/power-button wake passed with it on 2026-10-24; standby power has not been measured.
+
+## Tested on hardware
+
+| Feature | Verified behaviour |
+| --- | --- |
+| Boot | Fedora standard and EL2 kernels boot from the EFI System Partition |
+| Display | Internal display and external DisplayPort, including unplug and reconnect |
+| Wi-Fi | Wireless networking |
+| Bluetooth | Bluetooth initialization |
+| Audio | Audio devices and playback |
+| Camera | Camera capture |
+| USB input | USB keyboard wake from suspend; keyboard and touchpad reconnect |
+| Fingerprint reader | FTE7001 fingerprint authentication |
+| Security chip | QSEE TPM device, self-test, PCR access, and random-number generation |
+| Suspend and wake | RTC wake, system suspend and resume, and power-button wake |
+| Virtual machines | KVM |
+
+Fingerprint authentication uses `qcomtee.user_bridge_mode=1` with SELinux enforcing. The fingerprint RPM installs the qcomtee modprobe configuration. Restart after installation, then enroll a finger in GNOME **Settings → System → Users → Fingerprint Login**.
