@@ -78,7 +78,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             git make gcc bc bison flex cpio rsync kmod device-tree-compiler \
-            libssl-dev libelf-dev libdw-dev dwarves zstd clang libclang-dev lld ccache
+            libssl-dev libelf-dev libdw-dev dwarves zstd clang libclang-dev lld ccache \
+            cmake libcbor-dev podman
 
       - name: Install kernel Rust toolchain
         run: |
@@ -124,6 +125,16 @@ jobs:
 
       - name: Build RPM packages
         run: |
+          git init build-packages/quic-teec
+          git -C build-packages/quic-teec remote add origin https://github.com/qualcomm/quic-teec.git
+          git -C build-packages/quic-teec fetch --depth=1 origin 736419e25a2036aac3292a10a93e394a90750ca3
+          git -C build-packages/quic-teec checkout --detach 736419e25a2036aac3292a10a93e394a90750ca3
+          git init build-packages/libfprint
+          git -C build-packages/libfprint remote add origin https://gitlab.freedesktop.org/libfprint/libfprint.git
+          git -C build-packages/libfprint fetch --depth=1 origin 80a4b5ec612892c5c056c48dddaa561452cf37ec
+          git -C build-packages/libfprint checkout --detach 80a4b5ec612892c5c056c48dddaa561452cf37ec
+          bash tools/fingerprint/build-qtee-client.sh build-packages/quic-teec build-packages/fingerprint-native
+          bash tools/fingerprint/build-libfprint.sh build-packages/libfprint build-packages/fingerprint-libfprint
           sudo docker run --rm \
             -v "$GITHUB_WORKSPACE":"$GITHUB_WORKSPACE" \
             -w "$GITHUB_WORKSPACE" \
@@ -138,10 +149,12 @@ jobs:
             -e KERNEL_TAG="$KERNEL_TAG" \
             -e PACKAGE_RELEASE_TAG="$PACKAGE_RELEASE_TAG" \
             -e BUILD_EL2="$BUILD_EL2" \
+            -e FINGERPRINT_LIBFPRINT_STAGE="$GITHUB_WORKSPACE/build-packages/fingerprint-libfprint/source/stage" \
+            -e FINGERPRINT_NATIVE_DIR="$GITHUB_WORKSPACE/build-packages/fingerprint-native" \
             --user root \
             "fedora:44" \
             bash -euxo pipefail -c '
-              dnf -y install gcc make rpm-build kmod elfutils-libelf-devel tar gzip rsync systemd-rpm-macros alsa-ucm python3
+              dnf -y install gcc make rpm-build kmod elfutils-libelf-devel tar gzip rsync systemd-rpm-macros alsa-ucm python3 checkpolicy policycoreutils
               chmod +x scripts/ci/70_build_package_rpms.sh
               scripts/ci/70_build_package_rpms.sh
             '

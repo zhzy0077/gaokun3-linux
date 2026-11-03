@@ -1,0 +1,37 @@
+diff --git a/libfprint/meson.build b/libfprint/meson.build
+index f11533c..bfbe04b 100644
+--- a/libfprint/meson.build
++++ b/libfprint/meson.build
+@@ -88,6 +88,7 @@ nbis_sources = [
+ ]
+ 
+ driver_sources = {
++    'fte7001': files('drivers/fte7001.c'),
+     'upekts' : files(
+         'drivers/upekts.c',
+         'drivers/upek_proto.c',
+diff --git a/meson.build b/meson.build
+index ab09dc1..714a1d4 100644
+--- a/meson.build
++++ b/meson.build
+@@ -115,6 +115,7 @@ have_spi = host_machine.system() == 'linux'
+ drivers = get_option('drivers').split(',')
+ 
+ drivers_info = {
++    'fte7001': { 'virtual': true, 'optional': true },
+     'upektc_img': {},
+     'vfs5011': { 'endian_dependent': true },
+     'vfs7552': {},
+diff --git a/tests/meson.build b/tests/meson.build
+index aad0675..7435a37 100644
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -292,7 +292,7 @@ else
+         args: ['-c', 'exit 77']
+     )
+ 
+-    foreach driver_test: drivers_tests
++    foreach driver_test, info: drivers_tests
+         test(driver_test,
+             sh,
+             args: ['-c', 'exit 77']

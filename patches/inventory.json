@@ -480,6 +480,15 @@
       "source": "drivers/usb/host/xhci-hub.c:xhci_bus_suspend; drivers/usb/core/hub.c:hub_suspend,usb_wakeup_enabled_descendants; drivers/usb/host/xhci-ring.c:handle_port_status",
       "evidence": "Gaokun3 s2idle A/B/A on 2026-10-25: with xHCI wake disabled throughout, root-hub wake disabled/enabled/disabled gave keyboard wake failure/success/failure. Both failed traces entered system suspend with keyboard port 1-3 already in Resume; the successful trace slept for 15.86 seconds before USB PHY IRQ 204. This validates the root-hub policy workaround; the descendant-aware kernel change requires a rebuilt-kernel test. Locked upstream xhci-hub.c matches the running kernel source.",
       "sha256": "19fa94da96cd0de92e196eef3f98b7be145d768d87fc5c7a8ab83c588f3fc7d5"
+    },
+    {
+      "id": "others/0022",
+      "path": "patches/others/0022-tee-qcomtee-add-user-memory-bridge-vmid-policy.patch",
+      "category": "enablement",
+      "code_fact": "qcomtee 为非 TEE_SHM_PRIV 的用户共享内存提供 HLOS 或 SELF_OWNER+HLOS bridge 策略；私有调用缓冲保持 qcom_tzmem 平台策略，默认模块参数为 0。",
+      "source": "drivers/tee/qcomtee/shm.c:qcomtee_shm_register",
+      "evidence": "Gaokun3 EL2: HLOS mode 的 GPFS listener 完成原厂 TA 录入、匹配、拒绝与重启后匹配；SELinux Enforcing。",
+      "sha256": "c06087010647d3fd81d100e89b864c95d1f89fc382caa2f11dfe447f2a882f4f"
     }
   ],
   "removed": [
