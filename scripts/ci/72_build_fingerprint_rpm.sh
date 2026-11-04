@@ -12,6 +12,7 @@ stage="$topdir/stage"
 mkdir -p "$topdir"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS} \
          "$stage/opt/gaokun3-fingerprint/native" \
          "$stage/etc/modprobe.d" "$stage/etc/systemd/system/fprintd.service.d" \
+         "$stage/etc/systemd/system" \
          "$stage/usr/share/selinux/packages"
 cp -a "$FINGERPRINT_LIBFPRINT_STAGE/opt/gaokun3-fingerprint/libfprint" \
     "$stage/opt/gaokun3-fingerprint/"
@@ -19,11 +20,14 @@ install -m 0755 "$FINGERPRINT_NATIVE_DIR/qtee-client" "$FINGERPRINT_NATIVE_DIR/r
     "$GAOKUN_DIR/tools/fingerprint/run-qtee-client.py" \
     "$stage/opt/gaokun3-fingerprint/native/"
 install -m 0755 "$GAOKUN_DIR/tools/fingerprint/fingerprint-helper" \
+    "$GAOKUN_DIR/tools/fingerprint/install-selinux-policy" \
     "$stage/opt/gaokun3-fingerprint/"
 install -m 0644 "$GAOKUN_DIR/tools/fingerprint/qcomtee.conf" \
     "$stage/etc/modprobe.d/gaokun3-fingerprint.conf"
 install -m 0644 "$GAOKUN_DIR/tools/fingerprint/fprintd-override.conf" \
     "$stage/etc/systemd/system/fprintd.service.d/gaokun3-fingerprint.conf"
+install -m 0644 "$GAOKUN_DIR/tools/fingerprint/gaokun3-fingerprint-selinux.service" \
+    "$stage/etc/systemd/system/"
 checkmodule -M -m -o "$topdir/gaokun3_fingerprint.mod" \
     "$GAOKUN_DIR/tools/fingerprint/gaokun3-fingerprint.te"
 semodule_package -o "$stage/usr/share/selinux/packages/gaokun3_fingerprint.pp" \

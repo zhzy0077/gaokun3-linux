@@ -1,0 +1,11 @@
+[Unit]
+Description=Install the Gaokun3 fingerprint SELinux policy
+After=local-fs.target
+Before=fprintd.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/gaokun3-fingerprint/install-selinux-policy
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+#!/usr/bin/bash
+set -euo pipefail
+
+state_dir=/var/lib/gaokun3-fingerprint
+state_file="$state_dir/.selinux-policy-installed"
+[[ -e $state_file ]] && exit 0
+
+semodule -i /usr/share/selinux/packages/gaokun3_fingerprint.pp
+semanage fcontext -a -t gaokun3_fp_tee_device_t /dev/tee0 2>/dev/null || \
+    semanage fcontext -m -t gaokun3_fp_tee_device_t /dev/tee0
+semanage fcontext -a -t fprintd_var_lib_t "$state_dir/secure-files(/.*)?" 2>/dev/null || \
+    semanage fcontext -m -t fprintd_var_lib_t "$state_dir/secure-files(/.*)?"
+mkdir -p "$state_dir/secure-files"
+restorecon -RF /opt/gaokun3-fingerprint "$state_dir" /dev/tee0
+touch "$state_file"
