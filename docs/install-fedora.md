@@ -32,7 +32,7 @@ The base image is pinned to `Fedora-Workstation-Disk-44-1.7.aarch64.raw.xz` and 
 
 ## 2. Verify and flash from your operating system
 
-Use a **32 GiB or larger USB drive**, preferably a USB SSD for good write performance. The disk image expands to 16 GiB; allow that much local space if you decompress it manually.
+Use a **USB drive at least as large as the decompressed RAW image**; a 16 GB drive is sufficient for the current Fedora 45 image. The builder keeps the output RAW at the official image's exact byte length. Allow the same amount of local space if you decompress it manually.
 
 Reassemble the parts from that directory. The supplied scripts verify every part and the completed image, and refuse to overwrite an existing output:
 

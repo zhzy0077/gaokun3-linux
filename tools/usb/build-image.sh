@@ -72,7 +72,8 @@ esac
 mount -o ro,noload "${source_loop}p2" "$work/source/boot"
 
 # A fresh layout gives Gaokun a 1 GiB ESP without resizing Fedora partitions.
-truncate -s 16G "$output_image"
+source_size=$(stat --format=%s "$source_image")
+truncate --size="$source_size" "$output_image"
 parted -s "$output_image" mklabel gpt
 parted -s "$output_image" mkpart ESP fat32 1MiB 1025MiB
 parted -s "$output_image" set 1 esp on
