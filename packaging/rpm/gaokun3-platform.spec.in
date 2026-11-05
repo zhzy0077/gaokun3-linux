@@ -46,6 +46,9 @@ done
 for source in tools/image-assets/etc/modprobe.d/*.conf; do
     install -Dm644 "$source" "%{buildroot}%{_prefix}/lib/modprobe.d/gaokun3-$(basename "$source")"
 done
+for source in tools/image-assets/etc/udev/rules.d/*.rules; do
+    install -Dm644 "$source" "%{buildroot}%{_prefix}/lib/udev/rules.d/$(basename "$source")"
+done
 # Install Fedora platform policy alongside the shared image assets.
 install -Dm644 tools/audio/dist-alsa.conf %{buildroot}%{_sysconfdir}/modprobe.d/dist-alsa.conf
 install -Dm644 tools/bluetooth/bluetooth-nvm.conf %{buildroot}%{_prefix}/lib/modprobe.d/gaokun3-bluetooth-nvm.conf
@@ -125,6 +128,7 @@ done
 %files
 %{_prefix}/lib/modules-load.d/gaokun3-*.conf
 %{_prefix}/lib/modprobe.d/gaokun3-*.conf
+%{_prefix}/lib/udev/rules.d/80-gaokun3-battery.rules
 %config(noreplace) %{_sysconfdir}/modprobe.d/dist-alsa.conf
 %config(noreplace) %{_sysconfdir}/xdg/monitors.xml
 %config(noreplace) %{_sysconfdir}/kernel/install.d/51-dracut-rescue.install

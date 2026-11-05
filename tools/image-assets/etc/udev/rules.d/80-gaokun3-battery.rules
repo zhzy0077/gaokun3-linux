@@ -1,0 +1,4 @@
+# Apply a battery-health default when the Gaokun battery is discovered.
+# Later writes from GNOME/UPower are left unchanged because change events do
+# not match ACTION=="add".
+ACTION=="add", SUBSYSTEM=="power_supply", KERNEL=="gaokun-ec-battery", ATTR{charge_control_start_threshold}="60", ATTR{charge_control_end_threshold}="80", ATTR{smart_charge_delay}="0", ATTR{battery_adaptive_charge}="1"
