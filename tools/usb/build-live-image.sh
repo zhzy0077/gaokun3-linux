@@ -113,6 +113,10 @@ mapfile -t kernels < <(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d \
 krel=${kernels[0]}
 mkdir -p /usr/share/gaokun3 /usr/share/anaconda/post-scripts
 printf '%s\n' "$krel" > /usr/share/gaokun3/live-kernel-release
+rpm -q --qf '%{NAME} %{VERSION}-%{RELEASE}.%{ARCH}\n' \
+    kernel-gaokun3-el2 kernel-modules-gaokun3-el2 linux-firmware-gaokun3 \
+    gaokun3-platform gaokun3-fingerprint \
+    > /usr/share/gaokun3/live-rpm-provenance.txt
 
 dracut --force --no-hostonly --no-hostonly-cmdline \
     --add dmsquash-live --add-drivers 'erofs overlay' \
@@ -144,9 +148,12 @@ sync -f /boot/efi
 POST
 
 python3 -c 'from pykickstart.parser import KickstartParser; from pykickstart.version import makeVersion; p=KickstartParser(makeVersion("F45")); p.readKickstart("/usr/share/anaconda/post-scripts/90-gaokun3-boot.ks"); assert len(p.handler.scripts) == 1'
-lsinitrd -m /tmp/gaokun-live-initrd.img | grep -xq dmsquash-live
-lsinitrd /tmp/gaokun-live-initrd.img | grep -q '/erofs\.ko$'
-lsinitrd /tmp/gaokun-live-initrd.img | grep -q '/overlay\.ko$'
+lsinitrd -m /tmp/gaokun-live-initrd.img > /tmp/gaokun-live-initrd.modules
+lsinitrd /tmp/gaokun-live-initrd.img > /tmp/gaokun-live-initrd.files
+grep -xq dmsquash-live /tmp/gaokun-live-initrd.modules
+grep -q '/erofs\.ko$' /tmp/gaokun-live-initrd.files
+grep -q '/overlay\.ko$' /tmp/gaokun-live-initrd.files
+rm -f /tmp/gaokun-live-initrd.modules /tmp/gaokun-live-initrd.files
 
 dnf clean all
 rm -rf /var/tmp/gaokun-rpms
@@ -223,12 +230,21 @@ printf 'default gaokun-live.conf\ntimeout 5\n' > "$work/media/loader/loader.conf
 source_sha=$(sha256sum "$squashfs" | awk '{print $1}')
 cat > "$work/media/gaokun/image-build.txt" <<BUILD
 Fedora Live ISO: $(basename "$source_iso")
+Fedora Live ISO SHA256: $(sha256sum "$source_iso" | awk '{print $1}')
 Gaokun kernel: $krel
 Source LiveOS SHA256: $source_sha
 BUILD
+cat "$work/root/usr/share/gaokun3/live-rpm-provenance.txt" \
+    >> "$work/media/gaokun/image-build.txt"
 
 cmp "$new_erofs" "$work/media/LiveOS/squashfs.img"
 [[ $(blkid -s LABEL -o value "${target_loop}p1") == GAOKUNLIVE ]]
+[[ $(blkid -s TYPE -o value "${target_loop}p1") == vfat ]]
+[[ -s $work/media/EFI/BOOT/BOOTAA64.EFI ]]
+[[ -s $work/media/gaokun/linux ]]
+[[ -s $work/media/gaokun/initrd ]]
+[[ -s $work/media/gaokun/$dtb ]]
+[[ -s $work/media/LiveOS/squashfs.img ]]
 grep -q 'root=live:LABEL=GAOKUNLIVE' "$work/media/loader/entries/gaokun-live.conf"
 grep -q '^%post ' "$work/root/usr/share/anaconda/post-scripts/90-gaokun3-boot.ks"
 sync

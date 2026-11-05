@@ -4,7 +4,7 @@ The downloadable image is Fedora 45 Workstation aarch64 Live media adapted for t
 
 ## 1. Download and flash
 
-Open the [latest image release](https://github.com/zhzy0077/gaokun3-linux/releases/latest), then download every `fedora-gaokun3-usb.raw.xz.NNN` part, `SHA256SUMS`, `SHA256SUMS.parts`, and the join script for the current operating system into one directory.
+Open the [latest image release](https://github.com/zhzy0077/gaokun3-linux/releases/latest), then download every `fedora-gaokun3-usb.raw.xz.NNN` part, `SHA256SUMS`, `SHA256SUMS.parts`, and the join script for the current operating system into one directory. The release also contains `package-manifest.json` and `image-manifest.json`, which record the RPM and Fedora Live ISO provenance used for the image.
 
 Verify and reassemble the image:
 
@@ -57,7 +57,7 @@ The installed entry contains `root=UUID=...`, and the Gaokun kernel release cont
 
 ## 5. Build a newer image
 
-Run **Build Fedora Live USB Image - Gaokun3** with a package release containing the five matching RPMs:
+Run **Build Fedora Live USB Image - Gaokun3**. Leave `package_release` empty to call the package workflow first for the selected `kernel_tag`; it builds an EL2 package set and passes that release tag to the image job. Set `package_release` to an existing package release to reuse these five matching RPMs:
 
 - `kernel-gaokun3-el2`
 - `kernel-modules-gaokun3-el2`
@@ -65,7 +65,7 @@ Run **Build Fedora Live USB Image - Gaokun3** with a package release containing 
 - `gaokun3-platform`
 - `gaokun3-fingerprint`
 
-The workflow downloads the official `Fedora-Workstation-Live-45-1.4.aarch64.iso`, verifies SHA256 `ad73a977709d417f5b7dda4147fc071396b9d8d2bdcca2df615aa3aab7673710`, and runs `tools/usb/build-live-image.sh` on a native ARM runner.
+The workflow downloads the official `Fedora-Workstation-Live-45-1.4.aarch64.iso`, verifies SHA256 `ad73a977709d417f5b7dda4147fc071396b9d8d2bdcca2df615aa3aab7673710`, and runs `tools/usb/build-live-image.sh` on a native ARM runner. It validates the RPM package names and architectures, installs them into the Fedora 45 root, generates and inspects the no-hostonly Live initramfs, parses the Anaconda post-script, and checks the resulting EFI files, EROFS payload and FAT32 partition.
 
 The builder requires a Fedora aarch64 environment with `erofs-utils`, `rsync`, `parted`, `dosfstools`, `policycoreutils`, and `util-linux`. Its local form is:
 
@@ -76,4 +76,4 @@ sudo tools/usb/build-live-image.sh \
   fedora-gaokun3-usb.raw
 ```
 
-The resulting image has one GPT FAT32 partition labeled `GAOKUNLIVE`. It contains the modified EROFS payload under `LiveOS/squashfs.img`, the Gaokun kernel, DTB and initramfs under `gaokun/`, systemd-boot at `EFI/BOOT/BOOTAA64.EFI`, and the EL2 EFI drivers at `EFI/systemd/drivers/`.
+The resulting image has one GPT FAT32 partition labeled `GAOKUNLIVE`. It contains the modified EROFS payload under `LiveOS/squashfs.img`, the Gaokun kernel, DTB and initramfs under `gaokun/`, systemd-boot at `EFI/BOOT/BOOTAA64.EFI`, and the EL2 EFI drivers at `EFI/systemd/drivers/`. `gaokun/image-build.txt` records the Fedora source hashes, kernel release and installed Gaokun RPM versions.

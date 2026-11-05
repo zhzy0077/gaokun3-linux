@@ -4,19 +4,61 @@ on:
   workflow_dispatch:
     inputs:
       package_release:
-        description: Existing RPM release tag containing standard + EL2 packages
-        required: true
+        description: Existing RPM release tag; leave empty to build matching RPMs first
+        required: false
+        default: ""
         type: string
+      kernel_tag:
+        description: Kernel tag used when package_release is empty
+        required: true
+        default: "v7.3"
+        type: string
+  workflow_call:
+    inputs:
+      package_release:
+        description: Existing RPM release tag; leave empty to build matching RPMs first
+        required: false
+        default: ""
+        type: string
+      kernel_tag:
+        description: Kernel tag used when package_release is empty
+        required: false
+        default: "v7.3"
+        type: string
+    outputs:
+      image_release_tag:
+        description: Tag of the published Live USB release
+        value: ${{ jobs.build-usb.outputs.image_release_tag }}
+      image_release_url:
+        description: URL of the published Live USB release
+        value: ${{ jobs.build-usb.outputs.image_release_url }}
+
+concurrency:
+  group: gaokun3-live-${{ inputs.package_release || inputs.kernel_tag || github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
+  build-packages:
+    if: ${{ inputs.package_release == '' }}
+    uses: ./.github/workflows/gaokun3-package-rpms.yml
+    with:
+      kernel_tag: ${{ inputs.kernel_tag }}
+      build_el2: true
+    secrets: inherit
+
   build-usb:
+    needs: build-packages
+    if: ${{ always() && (needs.build-packages.result == 'success' || needs.build-packages.result == 'skipped') }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
+    outputs:
+      image_release_tag: ${{ steps.publish.outputs.image_release_tag }}
+      image_release_url: ${{ steps.publish.outputs.image_release_url }}
     env:
-      PACKAGE_RELEASE: ${{ inputs.package_release }}
+      PACKAGE_RELEASE: ${{ inputs.package_release || needs.build-packages.outputs.package_release_tag }}
       FEDORA_IMAGE: Fedora-Workstation-Live-45-1.4.aarch64.iso
       FEDORA_IMAGE_SHA256: ad73a977709d417f5b7dda4147fc071396b9d8d2bdcca2df615aa3aab7673710
     steps:
@@ -24,8 +66,12 @@ jobs:
 
       - name: Install image tools
         run: |
+          set -euo pipefail
+          [[ -n "$PACKAGE_RELEASE" ]]
           sudo apt-get update
-          sudo apt-get install -y dosfstools erofs-utils parted policycoreutils rsync xz-utils util-linux
+          sudo apt-get install -y \
+            curl dosfstools erofs-utils file gh parted policycoreutils python3 \
+            rpm rsync util-linux xz-utils
           mkdir -p work/rpms output
 
       - name: Download matching RPMs
@@ -33,9 +79,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          # Allow dispatch while the selected RPM build is publishing its release.
+          set -euo pipefail
           for attempt in $(seq 1 40); do
-            if gh release download "$PACKAGE_RELEASE" --pattern package-manifest.json --dir work --clobber; then
+            if gh release download "$PACKAGE_RELEASE" \
+                --pattern package-manifest.json --dir work --clobber; then
               break
             fi
             if [[ "$attempt" == 40 ]]; then
@@ -46,23 +93,40 @@ jobs:
             sleep 30
           done
           python3 - <<'PY'
-          import json, os, pathlib, subprocess
-          manifest = json.loads(pathlib.Path('work/package-manifest.json').read_text())
-          assert manifest['package_release_tag'] == os.environ['PACKAGE_RELEASE']
-          assert manifest['build_el2'] is True
-          packages = manifest['kernels']['el2']['packages']
-          names = [packages['kernel'], packages['kernel_modules'],
-                   manifest['packages']['firmware'], manifest['packages']['platform'],
-                   manifest['packages']['fingerprint']]
-          assert len(set(names)) == 5
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+
+          manifest = json.loads(Path('work/package-manifest.json').read_text())
+          if manifest.get('package_release_tag') != os.environ['PACKAGE_RELEASE']:
+              raise SystemExit('RPM manifest tag does not match PACKAGE_RELEASE')
+          if manifest.get('build_el2') is not True:
+              raise SystemExit('RPM release does not contain the EL2 package set')
+          el2 = manifest['kernels']['el2']['packages']
+          names = [
+              el2['kernel'], el2['kernel_modules'],
+              manifest['packages']['firmware'],
+              manifest['packages']['platform'],
+              manifest['packages']['fingerprint'],
+          ]
+          if len(set(names)) != 5:
+              raise SystemExit('RPM manifest does not identify five unique packages')
           for name in names:
-              assert pathlib.Path(name).name == name and name.endswith('.rpm')
-              subprocess.run(['gh', 'release', 'download', os.environ['PACKAGE_RELEASE'],
-                              '--pattern', name, '--dir', 'work/rpms'], check=True)
+              path = Path(name)
+              if path.name != name or path.suffix != '.rpm':
+                  raise SystemExit(f'Unsafe RPM asset name: {name!r}')
+              subprocess.run([
+                  'gh', 'release', 'download', os.environ['PACKAGE_RELEASE'],
+                  '--pattern', name, '--dir', 'work/rpms',
+              ], check=True)
           PY
+          python3 tools/usb/validate-rpm-bundle.py \
+            work/package-manifest.json work/rpms
 
       - name: Download and verify Fedora Live ISO
         run: |
+          set -euo pipefail
           curl --fail --location --retry 3 \
             "https://dl.fedoraproject.org/pub/fedora/linux/releases/45/Workstation/aarch64/iso/$FEDORA_IMAGE" \
             -o "work/$FEDORA_IMAGE"
@@ -70,44 +134,61 @@ jobs:
 
       - name: Rebuild Fedora Live system on native ARM
         run: |
-          sudo tools/usb/build-live-image.sh "work/$FEDORA_IMAGE" work/rpms output/fedora-gaokun3-usb.raw
-          sudo rm "work/$FEDORA_IMAGE"
+          set -euo pipefail
+          sudo tools/usb/build-live-image.sh \
+            "work/$FEDORA_IMAGE" work/rpms output/fedora-gaokun3-usb.raw
           sudo chown "$(id -u):$(id -g)" output/fedora-gaokun3-usb.raw
 
-      - name: Compress and checksum the disk image
+      - name: Compress and record the image
         run: |
+          set -euo pipefail
           xz -T2 -3 output/fedora-gaokun3-usb.raw
           (cd output && sha256sum fedora-gaokun3-usb.raw.xz > SHA256SUMS)
           cp work/package-manifest.json output/
-          printf 'Image tooling commit: %s\nRPM release: %s\nFedora image SHA256: %s\n' \
-            "$GITHUB_SHA" "$PACKAGE_RELEASE" "$FEDORA_IMAGE_SHA256" > output/image-build.txt
+          python3 tools/usb/write-image-manifest.py \
+            --package-manifest work/package-manifest.json \
+            --rpm-directory work/rpms \
+            --image output/fedora-gaokun3-usb.raw.xz \
+            --fedora-image "$FEDORA_IMAGE" \
+            --fedora-sha256 "$FEDORA_IMAGE_SHA256" \
+            --tooling-commit "$GITHUB_SHA" \
+            --output output/image-manifest.json
+          rm -f "work/$FEDORA_IMAGE"
 
       - name: Prepare release assets below the per-file limit
         run: |
+          set -euo pipefail
           python3 tools/usb/package-image.py output/fedora-gaokun3-usb.raw.xz
           cp tools/usb/join-image.sh tools/usb/join-image.ps1 output/
           rm output/fedora-gaokun3-usb.raw.xz
 
       - name: Publish USB image release
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          tag="gaokun3-usb-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          cat > work/release-notes.md <<'NOTES'
+          set -euo pipefail
+          tag="gaokun3-live-fedora45-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cat > work/release-notes.md <<NOTES
           Fedora 45 Workstation Live installer for the Gaokun3.
+
+          RPM release: $PACKAGE_RELEASE
+          Fedora ISO SHA256: $FEDORA_IMAGE_SHA256
+          Build commit: $GITHUB_SHA
 
           Download all numbered image parts, SHA256SUMS, SHA256SUMS.parts, and
           the join script for your OS into one directory. Run join-image.ps1
-          on Windows or `bash join-image.sh` on Linux/macOS, then flash the
+          on Windows or bash join-image.sh on Linux/macOS, then flash the
           resulting fedora-gaokun3-usb.raw.xz with balenaEtcher.
 
           See docs/install-fedora.md for installation and internal-disk migration.
-          Boot the Live USB on the Gaokun3, then launch Install Fedora. The
-          included Anaconda post-script finalizes the Gaokun boot files on the
-          selected internal disk.
+          Boot the Live USB on the Gaokun3, launch Install Fedora, and keep the
+          USB connected until Anaconda completes the included post-install script.
           NOTES
           gh release create "$tag" output/* --target "$GITHUB_SHA" \
             --title "Fedora 45 Live USB - Gaokun3 ($GITHUB_RUN_NUMBER)" \
             --notes-file work/release-notes.md
-          printf 'USB image release: https://github.com/%s/releases/tag/%s\n' "$GITHUB_REPOSITORY" "$tag" >> "$GITHUB_STEP_SUMMARY"
+          url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
+          printf 'image_release_tag=%s\nimage_release_url=%s\n' "$tag" "$url" >> "$GITHUB_OUTPUT"
+          printf 'USB image release: %s\n' "$url" >> "$GITHUB_STEP_SUMMARY"
