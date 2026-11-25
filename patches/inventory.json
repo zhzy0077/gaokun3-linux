@@ -1,7 +1,7 @@
 {
-  "upstream_repository": "torvalds/linux",
-  "upstream_tag": "v7.3",
-  "upstream_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
+  "upstream_repository": "gregkh/linux",
+  "upstream_tag": "v7.3.6",
+  "upstream_commit": "1a0388846138eda9f6eb4258ff227a223afc2f52",
   "original_repo_commit": "95845f7",
   "active": [
     {
@@ -143,10 +143,10 @@
       "id": "others/0005",
       "path": "patches/others/0005-drm-msm-dpu-fix-DSC-timing-width-truncation.patch",
       "category": "fix",
-      "code_fact": "DSC width 由 dce_bytes_per_line 向上取整；800 pixels/8bpp/8bpc 得 267，原整数公式得 266，与 DSI timing 不一致。",
+      "code_fact": "Linux 7.3.6 已向上取整；改用 dce_bytes_per_line 计算 DSC width，保留 fractional bpp 和 slice padding，与 DSI timing 一致。",
       "source": "drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c:drm_mode_to_intf_timing_params",
       "evidence": "arithmetic; Kbuild",
-      "sha256": "b11e0af2b68490bd8126b7a4db7bb7c264f1be1a57ffa067c5f1abf9efe30bc5"
+      "sha256": "2f9b6416e6be43755b81a873c28c15d7d5d69c6147934d0d3c368470b0d78650"
     },
     {
       "id": "others/0007",
@@ -251,10 +251,10 @@
       "id": "media/0004",
       "path": "patches/media/0004-media-iris-Gaokun-EL2-firmware-and-restart.patch",
       "category": "enablement",
-      "code_fact": "EL2 firmware_direct=1 时创建独立 firmware IOMMU device，加载 OEM 镜像并写 VPU2 reset；普通路径使用 upstream PAS。移植保留 upstream firmware detection/HFI descriptor 初始化。",
+      "code_fact": "EL2 firmware_direct=1 时创建独立 firmware IOMMU device，加载 OEM 镜像并写 VPU2 reset；沿用 7.3.6 的 firmware-name 选择和 probe 初始化的 HFI descriptor，普通路径使用 upstream PAS，移除时由上游取消 error work。",
       "source": "drivers/media/platform/qcom/iris/iris_firmware.c:iris_direct_load",
       "evidence": "runtime opt-in; Kbuild; new-baseline decode pending",
-      "sha256": "14e4502de791d87c862c24740752087a075d48b1971d3f218d4397c0446b1ad5"
+      "sha256": "d76a6ffad3c0d5b195014bc608d38ccb3657f6f4cc4b774e8ec028ade09c6294"
     },
     {
       "id": "media/0005",

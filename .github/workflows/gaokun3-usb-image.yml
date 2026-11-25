@@ -11,7 +11,7 @@ on:
       kernel_tag:
         description: Kernel tag used when package_release is empty
         required: true
-        default: "v7.3"
+        default: "v7.3.6"
         type: string
   workflow_call:
     inputs:
@@ -23,7 +23,7 @@ on:
       kernel_tag:
         description: Kernel tag used when package_release is empty
         required: false
-        default: "v7.3"
+        default: "v7.3.6"
         type: string
     outputs:
       image_release_tag:

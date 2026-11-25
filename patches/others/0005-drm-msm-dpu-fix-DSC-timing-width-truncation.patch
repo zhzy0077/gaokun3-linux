@@ -7,19 +7,18 @@ When programming DSI video timing with DSC enabled, derive the compressed
 timing width from dce_bytes_per_line and round it up to the number of
 source-pixel clocks required for the line.
 
-This keeps the DPU timing generator aligned with the DSI host timing
-calculation for cases where the compressed width is fractional. For example,
-800 pixels at 8 bpp over 8 bpc requires 267 clocks rather than the truncated
-266.
+Linux 7.3.6 already rounds the timing width up, but its calculation uses
+integer bits per pixel and omits DSC slice-byte padding. Using the line
+byte count keeps the DPU timing generator aligned with the DSI host.
 
 Signed-off-by: Lewis White <whitelewis@matebook-e-go>
 Signed-off-by: KawaiiHachimi <bilibili@att.net>
 ---
- drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c | 11 +++--------
- 1 file changed, 3 insertions(+), 8 deletions(-)
+ drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c | 9 ++-------
+ 1 file changed, 2 insertions(+), 7 deletions(-)
 
 diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c
-index ba810f26e..7a8d1136f 100644
+index 2ac517d..7a8d113 100644
 --- a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_vid.c
 @@ -12,7 +12,6 @@
@@ -38,13 +37,12 @@ index ba810f26e..7a8d1136f 100644
 -		 * TODO: replace drm_dsc_get_bpp_int with logic to handle
 -		 * fractional part if there is fraction
 -		 */
--		timing->width = timing->width * drm_dsc_get_bpp_int(dsc) /
--				(dsc->bits_per_component * 3);
--		timing->xres = timing->width;
- 		timing->dce_bytes_per_line = msm_dsc_get_bytes_per_line(dsc);
+-		timing->width = DIV_ROUND_UP(timing->width * drm_dsc_get_bpp_int(dsc),
++		timing->dce_bytes_per_line = msm_dsc_get_bytes_per_line(dsc);
 +		timing->width = DIV_ROUND_UP(timing->dce_bytes_per_line * 8,
-+					     dsc->bits_per_component * 3);
-+		timing->xres = timing->width;
+ 					     dsc->bits_per_component * 3);
+ 		timing->xres = timing->width;
+-		timing->dce_bytes_per_line = msm_dsc_get_bytes_per_line(dsc);
  	}
  }
  

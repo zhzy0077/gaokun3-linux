@@ -6,7 +6,7 @@ on:
       kernel_tag:
         description: Linux kernel tag
         required: true
-        default: "v7.3"
+        default: "v7.3.6"
       build_el2:
         description: Build extra -gaokun3-el2 kernel packages
         required: true
@@ -64,10 +64,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Read reviewed kernel source
+        id: kernel_source
+        run: |
+          source kernel-source.env
+          if [[ "$KERNEL_TAG" != "$GAOKUN_KERNEL_TAG" ]]; then
+            echo "This patch series targets $GAOKUN_KERNEL_TAG, got $KERNEL_TAG" >&2
+            exit 1
+          fi
+          echo "repository=$GAOKUN_KERNEL_REPOSITORY" >> "$GITHUB_OUTPUT"
+
       - name: Checkout Linux source
         uses: actions/checkout@v6
         with:
-          repository: torvalds/linux
+          repository: ${{ steps.kernel_source.outputs.repository }}
           ref: ${{ env.KERNEL_TAG }}
           fetch-depth: 1
           path: build-packages/mainline-linux
@@ -185,6 +195,7 @@ jobs:
         uses: softprops/action-gh-release@v2.6.1
         with:
           tag_name: ${{ steps.release_meta.outputs.package_release_tag }}
+          target_commitish: ${{ github.sha }}
           name: gaokun3 package RPMs - ${{ env.KERNEL_TAG }}${{ env.BUILD_EL2 == 'true' && ' + EL2' || '' }}
           body_path: ${{ env.ARTIFACT_DIR }}/package-release-body.md
           prerelease: ${{ env.KERNEL_TEST_SUFFIX != '' }}

@@ -5,13 +5,15 @@ Subject: [PATCH] media: iris: support Gaokun EL2 firmware boot
 
 Opt in with qcom_iris.firmware_direct=1 on the Gaokun EL2 boot entry. Map firmware through its own IOMMU device using the validated Venus VPU2 reset sequence.
 
-Use upstream firmware detection to initialize the HFI descriptor before direct boot. Decoder lifecycle fixes are maintained separately in media/0005.
+Use the same firmware name as the normal PAS path. Linux 7.3.6 reverted
+firmware autodetection and already cancels error work on driver removal.
+Decoder lifecycle fixes are maintained separately in media/0005.
 ---
 diff --git a/drivers/media/platform/qcom/iris/iris_core.h b/drivers/media/platform/qcom/iris/iris_core.h
-index 24da604..0759eee 100644
+index 3e4cf652b..676a33417 100644
 --- a/drivers/media/platform/qcom/iris/iris_core.h
 +++ b/drivers/media/platform/qcom/iris/iris_core.h
-@@ -120,6 +120,9 @@ struct iris_core {
+@@ -125,6 +125,9 @@ struct iris_core {
  	u32					intr_status;
  	struct delayed_work			sys_error_handler;
  	struct list_head			instances;
@@ -22,7 +24,7 @@ index 24da604..0759eee 100644
  	struct platform_inst_fw_cap		inst_fw_caps_dec[INST_FW_CAP_MAX];
  	struct platform_inst_fw_cap		inst_fw_caps_enc[INST_FW_CAP_MAX];
 diff --git a/drivers/media/platform/qcom/iris/iris_firmware.c b/drivers/media/platform/qcom/iris/iris_firmware.c
-index 21cdf1c..66e37ae 100644
+index ea9654dd6..95f6d5417 100644
 --- a/drivers/media/platform/qcom/iris/iris_firmware.c
 +++ b/drivers/media/platform/qcom/iris/iris_firmware.c
 @@ -4,6 +4,11 @@
@@ -37,7 +39,7 @@ index 21cdf1c..66e37ae 100644
  #include <linux/firmware/qcom/qcom_pas.h>
  #include <linux/firmware/qcom/qcom_scm.h>
  #include <linux/of_address.h>
-@@ -17,6 +22,10 @@
+@@ -17,6 +22,132 @@
  
  #define MAX_FIRMWARE_NAME_SIZE	128
  
@@ -45,13 +47,6 @@ index 21cdf1c..66e37ae 100644
 +module_param(firmware_direct, bool, 0444);
 +MODULE_PARM_DESC(firmware_direct, "Gaokun EL2 VPU2 direct firmware boot (requires firmware DT child)");
 +
- /* Detect Gen2 firmware by scanning the blob for:
-  *   QC_IMAGE_VERSION_STRING=<version>
-  * and then checking:
-@@ -108,6 +117,133 @@ static const struct firmware *iris_detect_firmware(struct iris_core *core,
- 	return firmware;
- }
- 
 +#define IRIS_DIRECT_TZ_BASE 0xc0000
 +#define IRIS_DIRECT_RESET 0x1000
 +
@@ -91,11 +86,10 @@ index 21cdf1c..66e37ae 100644
 +	core->direct_fw_dev = NULL;
 +}
 +
-+static int iris_direct_load(struct iris_core *core)
++static int iris_direct_load(struct iris_core *core, const char *fwname)
 +{
 +	struct platform_device_info info = { 0 };
 +	const struct firmware *fw;
-+	const char *fwname;
 +	struct platform_device *pdev;
 +	struct iommu_domain *domain;
 +	struct device_node *np;
@@ -138,12 +132,9 @@ index 21cdf1c..66e37ae 100644
 +		goto cleanup;
 +	}
 +	core->direct_fw_domain = domain;
-+	fw = iris_detect_firmware(core, &fwname);
-+	if (IS_ERR(fw)) {
-+		ret = PTR_ERR(fw);
++	ret = request_firmware(&fw, fwname, core->dev);
++	if (ret)
 +		goto cleanup;
-+	}
-+	core->iris_firmware_data = core->iris_firmware_desc->firmware_data;
 +	size = qcom_mdt_get_size(fw);
 +	if (size <= 0 || size > resource_size(&res) || resource_size(&res) > (6 * SZ_1M)) {
 +		ret = -EINVAL;
@@ -178,21 +169,20 @@ index 21cdf1c..66e37ae 100644
 +	return ret;
 +}
 +
-+
- static int iris_load_fw_to_memory(struct iris_core *core)
+ static int iris_load_fw_to_memory(struct iris_core *core, const char *fw_name)
  {
  	const struct firmware *firmware = NULL;
-@@ -160,6 +296,9 @@ int iris_fw_load(struct iris_core *core)
- 	const struct tz_cp_config *cp_config;
- 	int i, ret;
+@@ -75,6 +206,9 @@ int iris_fw_load(struct iris_core *core)
+ 	if (ret)
+ 		fwpath = core->iris_firmware_desc->fwname;
  
 +	if (firmware_direct)
-+		return iris_direct_load(core);
++		return iris_direct_load(core, fwpath);
 +
- 	ret = iris_load_fw_to_memory(core);
+ 	ret = iris_load_fw_to_memory(core, fwpath);
  	if (ret) {
- 		dev_err(core->dev, "firmware download failed %d\n", ret);
-@@ -190,10 +329,18 @@ int iris_fw_load(struct iris_core *core)
+ 		dev_err(core->dev, "firmware download failed\n");
+@@ -105,10 +239,20 @@ int iris_fw_load(struct iris_core *core)
  
  int iris_fw_unload(struct iris_core *core)
  {
@@ -200,6 +190,7 @@ index 21cdf1c..66e37ae 100644
 +		iris_direct_cleanup(core);
 +		return 0;
 +	}
++
  	return qcom_pas_shutdown(IRIS_PAS_ID);
  }
  
@@ -209,19 +200,8 @@ index 21cdf1c..66e37ae 100644
 +		iris_direct_reset(core, !resume);
 +		return 0;
 +	}
++
  	return qcom_pas_set_remote_state(resume, 0);
  }
-diff --git a/drivers/media/platform/qcom/iris/iris_probe.c b/drivers/media/platform/qcom/iris/iris_probe.c
-index e4acf4a..d2b0e18 100644
---- a/drivers/media/platform/qcom/iris/iris_probe.c
-+++ b/drivers/media/platform/qcom/iris/iris_probe.c
-@@ -200,6 +200,7 @@ static void iris_remove(struct platform_device *pdev)
- 	if (!core)
- 		return;
- 
-+	cancel_delayed_work_sync(&core->sys_error_handler);
- 	iris_core_deinit(core);
- 
- 	video_unregister_device(core->vdev_dec);
 -- 
 2.56.0

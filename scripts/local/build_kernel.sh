@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-KERNEL_TAG="${KERNEL_TAG:-v7.3}"
-GAOKUN_DIR="${GAOKUN_DIR:-$HOME/gaokun/linux-gaokun-buildbot}"
+repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+GAOKUN_DIR="${GAOKUN_DIR:-$repo_root}"
+source "$GAOKUN_DIR/kernel-source.env"
+KERNEL_TAG="${KERNEL_TAG:-$GAOKUN_KERNEL_TAG}"
+if [[ "$KERNEL_TAG" != "$GAOKUN_KERNEL_TAG" ]]; then
+    echo "This patch series targets $GAOKUN_KERNEL_TAG, got $KERNEL_TAG" >&2
+    exit 1
+fi
 KERN_SRC="${KERN_SRC:-$HOME/gaokun/mainline-linux}"
 KERN_OUT="${KERN_OUT:-$HOME/gaokun/kernel-out}"
 KERN_OUT_EL2="${KERN_OUT_EL2:-$HOME/gaokun/kernel-out-el2}"
@@ -59,7 +65,6 @@ configure_git_identity() {
 
 ensure_source_tree() {
     if [[ -f "$KERN_SRC/arch/arm64/configs/gaokun3_defconfig" ]]; then
-        source "$GAOKUN_DIR/kernel-source.env"
         python3 "$GAOKUN_DIR/tools/kernel/check-patch-inventory.py"
         local reviewed_digest
         reviewed_digest=$(sha256sum "$GAOKUN_DIR/patches/inventory.json" | cut -d " " -f1)
@@ -82,18 +87,12 @@ ensure_source_tree() {
         exit 1
     fi
 
-    if [[ ! -d "$GAOKUN_DIR" ]]; then
-        echo "linux-gaokun-buildbot not found. Cloning..."
-        mkdir -p "$HOME/gaokun"
-        git clone https://github.com/zhzy0077/linux-gaokun-buildbot "$GAOKUN_DIR"
-    fi
-
-    read -r -p "Use GitHub mirror (torvalds/linux) for Linux v7.3? [Y/n] [default: Y]: " mirror_choice
+    read -r -p "Use GitHub mirror ($GAOKUN_KERNEL_REPOSITORY) for Linux $KERNEL_TAG? [Y/n] [default: Y]: " mirror_choice
     mirror_choice="${mirror_choice:-Y}"
     if [[ "$mirror_choice" =~ ^([nN][oO]|[nN])$ ]]; then
-        KERNEL_URL="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
+        KERNEL_URL="https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
     else
-        KERNEL_URL="https://github.com/torvalds/linux.git"
+        KERNEL_URL="https://github.com/$GAOKUN_KERNEL_REPOSITORY.git"
     fi
 
     rm -rf "$KERN_SRC"
