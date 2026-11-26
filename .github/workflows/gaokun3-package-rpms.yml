@@ -159,6 +159,7 @@ jobs:
             "fedora:45" \
             bash -euxo pipefail -c '
               dnf -y install git cmake gcc make libcbor-devel
+              git config --global --add safe.directory "$PWD/build-packages/quic-teec"
               bash tools/fingerprint/build-qtee-client.sh build-packages/quic-teec build-packages/fingerprint-native
             '
           sudo docker run --rm \
