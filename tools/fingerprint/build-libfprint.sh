@@ -8,10 +8,11 @@ tools_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 [[ ! -e "$output" ]]
 mkdir -p "$output/source"
 git -C "$source_dir" archive HEAD | tar -xf - -C "$output/source"
-git -C "$output/source" apply "$tools_dir/libfprint.patch"
+# Apply to the exported tree without discovering an enclosing repository.
+GIT_CEILING_DIRECTORIES="$output" git -C "$output/source" apply "$tools_dir/libfprint.patch"
 cp "$tools_dir/fte7001.c" "$output/source/libfprint/drivers/"
 podman build --network=host -t localhost/gaokun3-libfprint-fedora45 \
-    -f "$tools_dir/Containerfile.libfprint" "$tools_dir" > "$output/container.log" 2>&1
+    -f "$tools_dir/Containerfile.libfprint" "$tools_dir" 2>&1 | tee "$output/container.log"
 podman run --rm --network=host --userns=keep-id -v "$output/source:/src:Z" -w /src \
     localhost/gaokun3-libfprint-fedora45 bash -euc '
 meson setup build --prefix=/opt/gaokun3-fingerprint/libfprint --libdir=lib64 \
@@ -20,7 +21,7 @@ meson setup build --prefix=/opt/gaokun3-fingerprint/libfprint --libdir=lib64 \
 meson compile -C build -j4
 meson test -C build fpi-device fpi-ssm fpi-assembling --print-errorlogs
 DESTDIR=/src/stage meson install -C build
-' > "$output/build.log" 2>&1
+' 2>&1 | tee "$output/build.log"
 sha256sum "$tools_dir/fte7001.c" "$tools_dir/libfprint.patch" \
     "$output/source/stage/opt/gaokun3-fingerprint/libfprint/lib64/libfprint-2.so.2.0.0" \
     > "$output/SHA256SUMS"

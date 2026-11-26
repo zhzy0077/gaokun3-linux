@@ -118,7 +118,8 @@ jobs:
           echo "PACKAGE_RELEASE_TAG=$package_release_tag" >> "$GITHUB_ENV"
 
       - name: Restore ccache
-        uses: actions/cache@v5
+        id: ccache
+        uses: actions/cache/restore@v5
         with:
           path: ~/.ccache
           key: gaokun3-packages-rpm-ccache-${{ env.KERNEL_TAG }}-${{ env.BUILD_EL2 }}-${{ hashFiles('patches/**', 'kernel-source.env', 'defconfig/**', 'dts/**', 'packaging/**', 'firmware/**', 'scripts/ci/*.sh', 'tools/kernel/*.py', '.github/workflows/gaokun3-package-rpms.yml') }}
@@ -132,6 +133,13 @@ jobs:
           mkdir -p "$WORKDIR" "$ARTIFACT_DIR"
           chmod +x scripts/ci/20_build_kernel_variants.sh
           scripts/ci/20_build_kernel_variants.sh
+
+      - name: Save kernel ccache
+        if: steps.ccache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ~/.ccache
+          key: ${{ steps.ccache.outputs.cache-primary-key }}
 
       - name: Build RPM packages
         run: |
