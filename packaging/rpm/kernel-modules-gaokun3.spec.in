@@ -3,7 +3,7 @@
 
 Name:           @PKG_NAME@
 Version:        @KREL_VERSION@
-Release:        18%{?dist}
+Release:        19%{?dist}
 Summary:        Kernel modules for the gaokun3 kernel
 License:        GPL-2.0-only
 ExclusiveArch:  aarch64
@@ -34,6 +34,9 @@ cp -a usr %{buildroot}/
 /usr/lib/modules/@KREL@
 
 %changelog
+* Sat Nov 28 2026 Gaokun buildbot - @KREL_VERSION@-19
+- Match the kernel package with the Gaokun3 wireless calibration fix
+
 * Sun Oct 25 2026 Gaokun buildbot - @KREL_VERSION@-18
 - Match the kernel package with the xHCI pending remote-wakeup fix
 
